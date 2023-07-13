@@ -607,7 +607,7 @@ function generateScrumReport() {
                             ticketMatches = true;
                             break;
                         }
-                    } else if (ticketNumber.toLowerCase().startsWith(condition.toLowerCase())) {
+                    } else if (ticketNumber.toLowerCase() == condition.toLowerCase()) {
                         ticketMatches = true;
                         break;
                     }
@@ -640,7 +640,7 @@ function generateScrumReport() {
                             sprintMatches = true;
                             break;
                         }
-                    } else if (sprintName.toLowerCase().startsWith(condition.toLowerCase())) {
+                    } else if (sprintName.toLowerCase() == condition.toLowerCase()) {
                         sprintMatches = true;
                         break;
                     }
@@ -673,7 +673,7 @@ function generateScrumReport() {
                             summaryMatches = true;
                             break;
                         }
-                    } else if (summary.toLowerCase().startsWith(condition.toLowerCase())) {
+                    } else if (summary.toLowerCase() == condition.toLowerCase()) {
                         summaryMatches = true;
                         break;
                     }
