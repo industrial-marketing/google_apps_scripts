@@ -47,7 +47,7 @@ function generateLastWeekReportForCurrentPMCheckOAuth() {
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
-        // Токен присутствует, выполняем функцию updateWeekPlan()
+        // Токен присутствует, выполняем функцию generateLastWeekReportForCurrentPM()
         generateLastWeekReportForCurrentPM();
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
@@ -181,6 +181,35 @@ function generateLastWeekReportForCurrentPM() {
     const reportData = reportSheet.getRange(1, pmColumn, reportSheet.getLastRow(), emptyColumn - pmColumn).getValues();
     const projectNames = reportSheet.getRange(5, pmColumn, 1, emptyColumn - pmColumn).getValues()[0];
 
+    const scrumDevelopers = scrumData.map(row => row[0]); // Get all developers from Scrum data
+
+    let reportDataRaw = [];
+    for (let row of reportData) {
+        if (row[0] === "total") {
+            break;
+        }
+        reportDataRaw.push(row);
+    }
+
+    let vacationData = reportDataRaw.map(row => {
+        let developer = row[0];
+
+        // Find a match in scrumDevelopers
+        for (let scrumDev of scrumDevelopers) {
+            if (developer.startsWith(scrumDev)) {
+                developer = scrumDev;
+                break;
+            }
+        }
+
+        const vacationHours = row.find((cell, index) => cell > 0 && projectNames[index] === "vacation");
+
+        return [developer, null, null, "vacation", vacationHours || 0];
+    }).filter(row => row[4] > 0); // Filter out developers with zero vacation hours
+
+    // Merge "vacation" data into scrumData
+    scrumData = [...scrumData, ...vacationData];
+
     let scrumDataGroupedByDeveloperAndProject = {};
     let scrumDataGroupedByDeveloper = {};
     let scrumDataGroupedByProject = {};
@@ -213,7 +242,7 @@ function generateLastWeekReportForCurrentPM() {
         scrumDataGroupedByDeveloperAndProject[developer][project].totalHours += Math.round(hours * 100) / 100;
         scrumDataGroupedByDeveloper[developer][project] += Math.round(hours * 100) / 100;
         scrumDataGroupedByProject[project].totalHours += Math.round(hours * 100) / 100;
-        if (type === 'DEVfree' || type === 'HR' || type === 'PRESALE' || type === 'Administrative' || type === 'Testing' || type === 'DevOps' || type === 'Learning') {
+        if (type === 'DEVfree' || type === 'HR' || type === 'PRESALE' || type === 'Administrative' || type === 'Testing' || type === 'DevOps' || type === 'Learning' || project === 'vacation') {
             scrumDataGroupedByDeveloperAndProject[developer][project].nonBillableHours += Math.round(hours * 100) / 100;
             scrumDataGroupedByProject[project].nonBillableHours += Math.round(hours * 100) / 100;
         }
@@ -290,6 +319,8 @@ function generateLastWeekReportForCurrentPM() {
                     if (developerShortName === pmLastName) {
                         rowFontColor = '#1155cc';
                     }
+
+                    if (devHours == 0) { rowFontColor = '#b45f06'; }
 
                     activeSheet.getRange(`B${currentRow}`).setValue(developerShortName).setFontColor(rowFontColor);
                     activeSheet.getRange(`C${currentRow}`).setValue(devHours).setFontColor(rowFontColor);
