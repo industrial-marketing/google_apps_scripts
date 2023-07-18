@@ -129,24 +129,41 @@ function generateLastWeekReportForCurrentPM() {
         return;
     }
 
-    let lastReportRow = activeSheet.getLastRow();
-    let totalHours = 0; // initialize totalHours here
+    const scrumSheet = ss.getSheetByName('Scrum files for last week');
+    let scrumData;
+    try {
+        const range = scrumSheet.getRange('A3:E' + scrumSheet.getLastRow());
+        scrumData = range.getValues();
+    } catch (error) {
+        SpreadsheetApp.getUi().alert("Error retrieving data from the scrum sheet: " + error);
+        return;
+    }
 
-    // Проверяем, существует ли уже отчет для этой недели, и если да, удаляем его
+    const filteredScrumData = scrumData.filter(row => {
+        const date = row[1]; // Предполагается, что дата находится во второй колонке (B)
+        return date >= lastWeekMondayDate && date <= lastWeekSundayDate;
+    });
+
+    if (filteredScrumData.length === 0) {
+        SpreadsheetApp.getUi().alert("No matching data found in 'Scrum files for last week' for dates " + lastWeekMondayString + "-" + lastWeekSundayString);
+        return;
+    }
+
+    let lastReportRow = activeSheet.getLastRow();
+    let totalHours = 0;
+
     for (let i = lastReportRow; i > 0; i--) {
         const weekCell = activeSheet.getRange(`B${i}`);
         const weekValue = weekCell.getValue();
         if (weekValue === `${Utilities.formatDate(lastWeekMondayDate, ss.getSpreadsheetTimeZone(), 'd.MM.yyyy')} - ${Utilities.formatDate(lastWeekSundayDate, ss.getSpreadsheetTimeZone(), 'd.MM.yyyy')}`) {
             const toDeleteRow = weekCell.getRow();
-            const deletedRowsCount = lastReportRow - toDeleteRow + 1; // Правильно обновляем количество удаленных строк
+            const deletedRowsCount = lastReportRow - toDeleteRow + 1;
             activeSheet.deleteRows(toDeleteRow, deletedRowsCount);
-            // Обновляем значение lastReportRow после удаления строк
             lastReportRow = activeSheet.getLastRow();
             break;
         }
     }
 
-    // Теперь добавляем новый отчет
     activeSheet.getRange(`A${lastReportRow + 6}`).setValue('Week');
     activeSheet.getRange(`B${lastReportRow + 6}`).setValue(`${Utilities.formatDate(lastWeekMondayDate, ss.getSpreadsheetTimeZone(), 'd.MM.yyyy')} - ${Utilities.formatDate(lastWeekSundayDate, ss.getSpreadsheetTimeZone(), 'd.MM.yyyy')}`);
     activeSheet.getRange(`A${lastReportRow + 8}`).setValue(pmInitials);
@@ -164,11 +181,6 @@ function generateLastWeekReportForCurrentPM() {
     const reportData = reportSheet.getRange(1, pmColumn, reportSheet.getLastRow(), emptyColumn - pmColumn).getValues();
     const projectNames = reportSheet.getRange(5, pmColumn, 1, emptyColumn - pmColumn).getValues()[0];
 
-    // Получаем данные из листа "Scrum files for last week"
-    const scrumSheet = ss.getSheetByName('Scrum files for last week');
-    const scrumData = scrumSheet.getRange('A3:E' + scrumSheet.getLastRow()).getValues();
-
-    // Группируем данные из листа "Scrum files for last week" по разработчику и проекту
     let scrumDataGroupedByDeveloperAndProject = {};
     let scrumDataGroupedByDeveloper = {};
     let scrumDataGroupedByProject = {};
@@ -198,24 +210,24 @@ function generateLastWeekReportForCurrentPM() {
                 nonBillableHours: 0
             };
         }
-        scrumDataGroupedByDeveloperAndProject[developer][project].totalHours += hours;
-        scrumDataGroupedByDeveloper[developer][project] += hours;
-        scrumDataGroupedByProject[project].totalHours += hours;
-        if (type === 'DEVfree') {
-            scrumDataGroupedByDeveloperAndProject[developer][project].nonBillableHours += hours;
-            scrumDataGroupedByProject[project].nonBillableHours += hours;
+        scrumDataGroupedByDeveloperAndProject[developer][project].totalHours += Math.round(hours * 100) / 100;
+        scrumDataGroupedByDeveloper[developer][project] += Math.round(hours * 100) / 100;
+        scrumDataGroupedByProject[project].totalHours += Math.round(hours * 100) / 100;
+        if (type === 'DEVfree' || type === 'HR' || type === 'PRESALE' || type === 'Administrative' || type === 'Testing' || type === 'DevOps' || type === 'Learning') {
+            scrumDataGroupedByDeveloperAndProject[developer][project].nonBillableHours += Math.round(hours * 100) / 100;
+            scrumDataGroupedByProject[project].nonBillableHours += Math.round(hours * 100) / 100;
         }
     });
 
     const headersCells = ["B", "C", "D", "E", "F", "G", "H"];
-    const headersNames = ['Project', 'Planned total/non-billable', 'Fact Total', 'Fact non-billable', 'Fact/Plan difference', 'Actual Allocation', 'PM Comments'];
+    const headersNames = ['Project', 'Planned total/ non-billable', 'Fact Total', 'Fact non-billable', 'Fact/Plan difference', 'Actual Allocation', 'PM Comments'];
 
     headersNames.forEach((header, index) => {
-        const cell = activeSheet.getRange(`${headersCells[index]}${lastReportRow + 9}`);
+        const cell = activeSheet.getRange(`${headersCells[index]}${lastReportRow + 8}`);
         cell.setValue(header).setFontWeight('bold').setBackground("#cccccc");
     });
 
-    let currentRow = lastReportRow + 10;
+    let currentRow = lastReportRow + 9;
     let totalFactTotal = 0;
     let totalFactNonBillable = 0;
     let totalFactPlanDifference = 0;
@@ -228,20 +240,19 @@ function generateLastWeekReportForCurrentPM() {
             for (let j = 5; j < reportData.length; j++) {
                 if (reportData[j][i] > 0) {
                     if (reportData[j][0] === "total") {
-                        projectHours += reportData[j][i];
-                        totalHours += reportData[j][i];
+                        projectHours += Math.round(reportData[j][i] * 100) / 100;
+                        totalHours += Math.round(reportData[j][i] * 100) / 100;
                     } else if (reportData[j][0] === "Бесплатно:") {
-                        projectNonBillable += reportData[j][i];
+                        projectNonBillable += Math.round(reportData[j][i] * 100) / 100;
                         break;
                     } else if (reportData[j][0] === "paid" || reportData[j][0] === "scrum file total 4 days appr to 5") {
                         break;
                     } else {
-                        projectDevelopers.push({name: reportData[j][0], hours: reportData[j][i]});
+                        projectDevelopers.push({name: reportData[j][0], hours: Math.round(reportData[j][i] * 100) / 100});
                     }
                 }
             }
 
-            // Выводим суммы по проекту
             if (projectHours > 0) {
                 activeSheet.getRange(`B${currentRow}`).setValue(projectNames[i]).setBackground("#d9ead3");
                 activeSheet.getRange(`C${currentRow}`).setValue(`${projectHours}/${projectNonBillable}`).setBackground("#d9ead3");
@@ -249,44 +260,61 @@ function generateLastWeekReportForCurrentPM() {
                     activeSheet.getRange(`D${currentRow}`).setValue(scrumDataGroupedByProject[projectNames[i]].totalHours).setBackground("#d9ead3");
                     activeSheet.getRange(`E${currentRow}`).setValue(scrumDataGroupedByProject[projectNames[i]].nonBillableHours).setBackground("#d9ead3");
                     activeSheet.getRange(`F${currentRow}`).setValue(projectHours - scrumDataGroupedByProject[projectNames[i]].totalHours).setBackground("#d9ead3");
-                    activeSheet.getRange(`G${currentRow}`).setValue('').setBackground("#d9ead3");
-                    activeSheet.getRange(`H${currentRow}`).setValue('').setBackground("#d9ead3");
                 }
+                activeSheet.getRange(`G${currentRow}`).setValue('').setBackground("#d9ead3");
+                activeSheet.getRange(`H${currentRow}`).setValue('').setBackground("#d9ead3");
                 currentRow++;
 
+                let projectName = projectNames[i];
 
-                for (let dev of projectDevelopers) {
-                    let developerName = '';
-                    for (let developer in scrumDataGroupedByDeveloperAndProject) {
-                        if (dev.name.startsWith(developer)) {
-                            developerName = developer;
-                            break;
+                let scrumDevelopers = Object.keys(scrumDataGroupedByDeveloperAndProject).filter(dev => Object.keys(scrumDataGroupedByDeveloperAndProject[dev]).includes(projectName));
+
+                let allScrumDevelopers = Object.keys(scrumDataGroupedByDeveloperAndProject).filter(dev => Object.keys(scrumDataGroupedByDeveloperAndProject[dev]));
+
+                let projectDevelopersRenamed = []; // projectDevelopers.map(dev => dev.name.split(' ')[0]); // Get short names from the workload report
+
+                projectDevelopers.forEach(workloadDev => {
+                    allScrumDevelopers.forEach(scrumDev => {
+                        if (workloadDev.name.startsWith(scrumDev)) {
+                            projectDevelopersRenamed.push(scrumDev);
                         }
+                    });
+                });
+
+                let allDevelopers = [...new Set([...projectDevelopersRenamed, ...scrumDevelopers])]; // Now we are comparing short names
+
+                for (let developerShortName of allDevelopers) {
+                    let devHours = projectDevelopers.find(dev => dev.name.startsWith(developerShortName))?.hours || 0;
+
+                    let rowFontColor = '#000000';
+                    if (developerShortName === pmLastName) {
+                        rowFontColor = '#1155cc';
                     }
 
-                    let rowFontColor = '#000000'; // default font color
-                    if (developerName.startsWith(pmLastName)) {
-                        rowFontColor = '#1155cc'; // set to blue if name starts with sheet name
+                    activeSheet.getRange(`B${currentRow}`).setValue(developerShortName).setFontColor(rowFontColor);
+                    activeSheet.getRange(`C${currentRow}`).setValue(devHours).setFontColor(rowFontColor);
+
+                    // Adding a check before trying to access properties
+                    if (scrumDataGroupedByDeveloper[developerShortName]) {
+                        let allocationList = [];
+                        let totalDeveloperHours = 0; // Initialize total developer hours here
+                        for (let project in scrumDataGroupedByDeveloper[developerShortName]) {
+                            let roundedHours = Math.round(scrumDataGroupedByDeveloper[developerShortName][project] * 100) / 100;
+                            totalDeveloperHours += roundedHours; // Increment total hours with each project
+                            allocationList.push(project + ' (' + roundedHours + ')');
+                        }
+                        // Append total hours to the end of the list
+                        // allocationList.push('TOTAL (' + Math.round(totalDeveloperHours * 100) / 100 + ')');
+                        allocationList = Math.round(totalDeveloperHours * 100) / 100 + ': ' + allocationList.join(', ');
+                        activeSheet.getRange(`G${currentRow}`).setValue(allocationList).setFontColor(rowFontColor);
                     }
 
-                    if (developerName == '') activeSheet.getRange(`B${currentRow}`).setValue(dev.name);
-                    else activeSheet.getRange(`B${currentRow}`).setValue(developerName);
 
-                    activeSheet.getRange(`B${currentRow}`).setFontColor(rowFontColor);
-                    activeSheet.getRange(`C${currentRow}`).setValue(dev.hours).setFontColor(rowFontColor);
-
-                    let projectName = projectNames[i];
-
-                    let allocationList = [];
-                    for (let project in scrumDataGroupedByDeveloper[developerName]) {
-                        allocationList.push(project + ' (' + scrumDataGroupedByDeveloper[developerName][project] + ')');
-                    }
-                    allocationList = allocationList.join(', ');
-
-                    if (projectName != '' && developerName != '' && scrumDataGroupedByDeveloperAndProject[developerName][projectName]) {
-                        let totalHours = scrumDataGroupedByDeveloperAndProject[developerName][projectName].totalHours;
-                        let nonBillableHours = scrumDataGroupedByDeveloperAndProject[developerName][projectName].nonBillableHours;
-                        let factPlanDifference = dev.hours - totalHours;
+                    // Adding a check before trying to access properties
+                    if (scrumDataGroupedByDeveloperAndProject[developerShortName] && scrumDataGroupedByDeveloperAndProject[developerShortName][projectName]) {
+                        let totalHours = scrumDataGroupedByDeveloperAndProject[developerShortName][projectName].totalHours;
+                        let nonBillableHours = scrumDataGroupedByDeveloperAndProject[developerShortName][projectName].nonBillableHours;
+                        let factPlanDifference = devHours - totalHours;
 
                         activeSheet.getRange(`D${currentRow}`).setValue(totalHours).setFontColor(rowFontColor);
                         activeSheet.getRange(`E${currentRow}`).setValue(nonBillableHours).setFontColor(rowFontColor);
@@ -299,11 +327,19 @@ function generateLastWeekReportForCurrentPM() {
                         if (factPlanDifference > 0) {
                             activeSheet.getRange(`F${currentRow}`).setFontColor("#ff0000");
                         }
+                    } else {
+                        let totalHours = 0;
+                        let nonBillableHours = 0;
+                        let factPlanDifference = devHours - totalHours;
+                        activeSheet.getRange(`D${currentRow}`).setValue(totalHours).setFontColor(rowFontColor);
+                        activeSheet.getRange(`E${currentRow}`).setValue(nonBillableHours).setFontColor(rowFontColor);
+                        activeSheet.getRange(`F${currentRow}`).setValue(factPlanDifference).setFontColor(rowFontColor);
+                        if (factPlanDifference > 0) {
+                            activeSheet.getRange(`F${currentRow}`).setFontColor("#ff0000");
+                        }
                     }
-                    activeSheet.getRange(`G${currentRow}`).setValue(allocationList).setFontColor(rowFontColor);
                     currentRow++;
                 }
-
             }
         }
     }
@@ -313,9 +349,9 @@ function generateLastWeekReportForCurrentPM() {
     activeSheet.getRange(`D${currentRow}`).setValue(totalFactTotal).setFontWeight('bold');
     activeSheet.getRange(`E${currentRow}`).setValue(totalFactNonBillable).setFontWeight('bold');
     activeSheet.getRange(`F${currentRow}`).setValue(totalFactPlanDifference).setFontWeight('bold');
-
-    activeSheet.getRange(`A${lastReportRow + 6}:H${currentRow}`).setBorder(true, true, true, true, true, true);
+    activeSheet.getRange(`B${lastReportRow + 9}:H${currentRow}`).setBorder(true, true, true, true, true, true);
 }
+
 
 
 function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
