@@ -8,8 +8,11 @@ function onOpen() {
     ui.createMenu('Custom Menu')
         .addItem('Save OAuth Token', 'saveOAuthToken')
         .addItem('Generate SALES report', 'generateSalesReportCheckOAuth')
+        .addItem('Generate ALL report', 'generateAllReportCheckOAuth')
         .addItem('Update scrum files data for current week in "Scrum files for current week"', 'gatherDataInCurrentSheetCheckOAuth')
         .addItem('Update developers competences in "Competences"', 'copyDataToCompetencesSheetCheckOAuth')
+        .addItem('Show only bench rows', 'showOnlyBenchRows')
+        .addItem('Show all rows', 'showAllRows')
         .addToUi();
 }
 
@@ -50,6 +53,32 @@ function copyDataToCompetencesSheetCheckOAuth() {
     if (hasToken) {
         // Токен присутствует, выполняем функцию generateSalesReport()
         copyDataToCompetencesSheet();
+    } else {
+        // Токен отсутствует, отображаем диалоговое окно пользователю
+        var response = Browser.msgBox(
+            "OAuth Token Required",
+            "Please obtain an OAuth token by clicking the 'OK' button.",
+            Browser.Buttons.OK_CANCEL
+        );
+
+        if (response === Browser.Buttons.OK) {
+            // Пользователь нажал OK, выполняем действия для получения токена
+            saveOAuthToken();
+        } else {
+            // Пользователь нажал Cancel, не выполняем функцию parseData()
+            return;
+        }
+    }
+}
+
+
+function generateAllReportCheckOAuth() {
+    // Проверка наличия OAuth-токена
+    var hasToken = checkOAuthToken();
+
+    if (hasToken) {
+        // Токен присутствует, выполняем функцию generateSalesReport()
+        generateSalesReport(true);
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
         var response = Browser.msgBox(
@@ -120,9 +149,15 @@ function gatherDataInCurrentSheetCheckOAuth() {
 
 var monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-function generateSalesReport() {
+function generateSalesReport(all) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const reportSheet = ss.getSheetByName('SALES report');
+
+    let reportName = "SALES report"
+    if(all) {
+        reportName = 'ALL report';
+    }
+
+    reportSheet = ss.getSheetByName(reportName);
 
     var range = reportSheet.getDataRange();
     var notes = range.getNotes();
@@ -139,9 +174,9 @@ function generateSalesReport() {
     const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
     const workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
 
-    const competencesSheetId = "1dblvYXs4QfW2WbZGlU489I6Yy9o0xc6s_33w96DdXlA";
-    const competencesSpreadsheet = SpreadsheetApp.openById(competencesSheetId);
-    const competencesSheet = competencesSpreadsheet.getSheetByName('Компетенции Dev');
+    // const competencesSheetId = "1dblvYXs4QfW2WbZGlU489I6Yy9o0xc6s_33w96DdXlA";
+    // const competencesSpreadsheet = SpreadsheetApp.openById(competencesSheetId);
+    // const competencesSheet = competencesSpreadsheet.getSheetByName('Компетенции Dev');
 
     const currentWeekMondayDate = new Date();
     currentWeekMondayDate.setDate(currentWeekMondayDate.getDate() - currentWeekMondayDate.getDay() + (currentWeekMondayDate.getDay() == 0 ? -6:1));
@@ -162,79 +197,148 @@ function generateSalesReport() {
     }
 
 
+    let developers = getDevelopers(workloadSheet, all);
 
-    let developers = getDevelopers(workloadSheet);
-    const { competenceDevelopers, competences } = getCompetences(competencesSheet, developers);
+    showAllRows();
 
     // Initialize report
     reportSheet.clearContents();
-    reportSheet.getRange('B3').setValue(`SALES report for ${currentWeekMondayString} - ${currentWeekSundayString}`).setFontSize(20);
+    reportSheet.getRange('B3').setValue( reportName + ` for ${currentWeekMondayString} - ${currentWeekSundayString}`).setFontSize(20);
 
     // Initialize the header row
     reportSheet.getRange('B5').setValue('Developer').setVerticalAlignment("middle");
     reportSheet.getRange('C5').setValue('English').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
     reportSheet.getRange('D5').setValue('Training').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
     reportSheet.getRange('E5').setValue('Sales').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('F5').setValue('Allocation').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('G5').setValue('Resume Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('H5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('I5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('J5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    reportSheet.getRange('F5').setValue('Plan').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('G5').setValue('Fact').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('H5').setValue('Profile Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('I5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('J5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('K5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
 
-    let column = 11;
-    for (let competence of competences) {
-        reportSheet.getRange(5, column).setValue(competence).setVerticalAlignment("middle").setHorizontalAlignment("center").setTextRotation(90).setBackground("#cccccc");
-        reportSheet.setColumnWidth(column, 20);
+    let column = 12;
+    let allStacks = {};
+
+    for (let developer of developers) {
+        if(!developer.name) continue;
+        let developerName = developer.name.split("(")[0].trim();
+        let stackData = getDeveloperStackData(developerName);
+
+        for (let stack in stackData) {
+            if(stack != '') {
+                if (!allStacks.hasOwnProperty(stack)) {
+                    allStacks[stack] = 0;
+                }
+                allStacks[stack]++;
+            }
+        }
+    }
+
+    let sortedStacks = Object.keys(allStacks).sort((a, b) => allStacks[b] - allStacks[a]);
+
+    let n = 0;
+    for (let stack of sortedStacks) {
+        n++;
+        reportSheet.getRange(5, column).setValue(stack).setVerticalAlignment("middle").setHorizontalAlignment("center").setTextRotation(90).setBackground("#cccccc").setFontSize(9);
+        reportSheet.setColumnWidth(column, 25);
         column++;
+        if(n > 12) break;
     }
 
 
     // Initialize the data rows
     let row = 6;
     for (let developer of developers) {
+        if(!developer.name) continue;
         let developerName = developer.name.split("(")[0].trim(); // Remove everything after the "(" and trim spaces
-
-        // Check if the key exists in the object
-        //if (competenceDevelopers.hasOwnProperty(developerName)) {
-        let developerData = competenceDevelopers[developerName];
-        let englishLevel = getDeveloperCompetenceData(developerName)['Английский'];
-        if (englishLevel == '' || englishLevel == '--') {
-            englishLevel =
-        }
-        reportSheet.getRange(row, 2).setValue(developerName).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 3).setValue(englishLevel).setVerticalAlignment("middle");
+        let competenceData = getDeveloperCompetenceData(developerName)
+        let englishLevel = competenceData['Английский'];
         // Here you need to calculate trainingAndSales and allocation for each developer
         let trainingHours = developer.projects['Training'] || 0;
         let salesHours = developer.projects['SALES'] || 0;
 
+        let stackData = getDeveloperStackData(developerName);
+
+        if (trainingHours >= 10) {
+            // Выделить строку зеленым цветом
+            reportSheet.getRange(row, 2, 1, 9).setBackground("#d9ead3"); // Смените число 10 на число столбцов в вашей строке
+        }
+
+        reportSheet.getRange(row, 2).setValue(developerName).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 3).setValue(englishLevel).setVerticalAlignment("middle");
+
         reportSheet.getRange(row, 4).setValue(trainingHours).setVerticalAlignment("middle");
         reportSheet.getRange(row, 5).setValue(salesHours).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 6).setValue(getAllocationData(developers, developerName)).setVerticalAlignment("middle");
-        let resumeLink = getResumeLink(developerName);
-        if (resumeLink) {
-            reportSheet.getRange(row, 7).setFormula(`=HYPERLINK("${resumeLink}", "Link")`).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 6).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 7).setValue(getAllocationData(developers, developerName)).setVerticalAlignment("middle").setWrap(true);
+        let profileLink = competenceData['личное дело'] ?? '';
+        if (profileLink) {
+            reportSheet.getRange(row, 8).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
         }
-        let competenceText = getDeveloperCompetenceData(developerName)['Инструменты\nБиблиотеки\nСистемы'];
-        reportSheet.getRange(row, 8).setValue(getDeveloperCompetenceData(developerName)['Основной стек']).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 9).setValue(getDeveloperCompetenceData(developerName)['Дополнительный стек']).setVerticalAlignment("middle").setNote(competenceText);
-        reportSheet.getRange(row, 10).setValue(getDeveloperCompetenceData(developerName)['Обучаемость'] + ' ' + getDeveloperCompetenceData(developerName)['Стрессоустойчивость'] + ' ' + getDeveloperCompetenceData(developerName)['Работа в команде'] + ' ' + getDeveloperCompetenceData(developerName)['Работа с клиентом (командой клиента)'] + ' ' + getDeveloperCompetenceData(developerName)['Навыки самопрезентации'] + ' ' + getDeveloperCompetenceData(developerName)['Гибкость мышления']).setVerticalAlignment("middle").setHorizontalAlignment("center");
+        let competenceText = competenceData['Инструменты\nБиблиотеки\nСистемы'] ?? '';
+        reportSheet.getRange(row, 9).setValue(competenceData['Основной стек'] ?? '').setVerticalAlignment("middle");
+        reportSheet.getRange(row, 10).setValue(competenceData['Дополнительный стек'] ?? '').setVerticalAlignment("middle").setNote(competenceText);
+        reportSheet.getRange(row, 11).setValue(
+            (competenceData['Обучаемость'] ?? '') + '  ' +
+            (competenceData['Стрессоустойчивость'] ?? '') + '  ' +
+            (competenceData['Работа в команде'] ?? '') + '  ' +
+            (competenceData['Работа с клиентом (командой клиента)'] ?? '') + '  ' +
+            (competenceData['Навыки самопрезентации'] ?? '') + '  ' +
+            (competenceData['Гибкость мышления'] ?? '')
+        ).setVerticalAlignment("middle").setHorizontalAlignment("center");
 
-        let column = 11;
-        if (competenceDevelopers.hasOwnProperty(developerName)) {
-            for (let competence of competences) {
-                let competenceScore = developerData.competences[competence];
-                if (competenceScore) {
-                    reportSheet.getRange(row, column).setValue(competenceScore.score);
-                }
-                column++;
+
+        let column = 12;
+        n = 0;
+
+        for (let stack of sortedStacks) {
+            n++;
+            let stackLevel = stackData[stack] || '';
+            let cell = reportSheet.getRange(row, column);
+            cell.setValue(stackLevel).setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+
+            // Устанавливаем цвета для разных уровней
+            if (stackLevel.startsWith('jun')) {
+                cell.setBackground("#add8e6");  // Цвет для Junior (Светло-синий)
+            } else if (stackLevel.startsWith('mid')) {
+                cell.setBackground("#90ee90");  // Цвет для Middle (Светло-зелёный)
+            } else if (stackLevel.startsWith('sr')) {
+                cell.setBackground("#f4a460");  // Цвет для Senior (Светло-коричневый)
             }
+            column++;
+            if(n > 12) break;
         }
         row++;
     }
 
     // Set the border
-    reportSheet.getRange(5, 2, row-5, column-1).setBorder(true, true, true, true, true, true);
+    reportSheet.getRange(5, 2, row-5, column-2).setBorder(true, true, true, true, true, true);
 }
+
+
+function getDeveloperStackData(developerName) {
+    let data = getDeveloperCompetenceData(developerName);
+
+    let mainStack = data['Основной стек'] ? data['Основной стек'].split('\n') : [];
+    let extraStack = data['Дополнительный стек'] ? data['Дополнительный стек'].split('\n') : [];
+    let stackData = {};
+
+    mainStack.concat(extraStack).forEach(stackLine => {
+        let lastSpaceIndex = stackLine.lastIndexOf(' ');
+        let stack = stackLine.substring(0, lastSpaceIndex).trim();
+        let level = stackLine.substring(lastSpaceIndex + 1);
+
+        if (level) {
+            level = level.toLowerCase().trim().replace('middle', 'mid').replace('junior', 'jun').replace('senior', 'sr').replace('?', '').replace('nonchecked', '');
+        }
+        if (level != 'nonchecked') stackData[stack] = level || '';
+    });
+
+    return stackData;
+}
+
+
 
 function getResumeLink(developerName) {
     const candidateWorkflowId = "189YZ_AKtBhVBADGksYIjKQCg8h_ky6Bh5tjEzxUWeXY";
@@ -316,7 +420,7 @@ function getAllocationData(developers, developerName) {
 }
 
 
-function getDevelopers(workloadSheet) {
+function getDevelopers(workloadSheet, all) {
     let developers = [];
     let projects = [];
 
@@ -330,35 +434,37 @@ function getDevelopers(workloadSheet) {
         // Get the developer's name, which is assumed to be in the 4th column
         let developerName = workloadData[i][3];
 
+        var projectHours = getHoursByNameAndProject(workloadData, developerName);
+
         // If the developer name is "total", stop the loop
         if (developerName === 'total') {
             break;
         }
 
-        // Create a new developer object
-        let developer = {name: developerName, projects: {}};
+        if (!developerName) {
+            continue;
+        }
 
-        // Check if the developer worked on the "Training" or "SALES" projects
+        // Create a new developer object
+        let developer = {name: developerName, projectHours, projects: {}};
+
         for (let j = 1; j < workloadData[i].length; j++) {
             let hours = workloadData[i][j];
             let projectName = projects[j - 1];
 
-            // If the developer worked on this project, add it to the developer's projects
-            if (hours && (projectName === "Training" || projectName === "SALES")) {
+            if (hours) {
                 developer.projects[projectName] = hours;
-                // Logger.log(projectName + " : " + hours);
             }
         }
 
-        // Only add the developer to the array if they worked on the "Training" or "SALES" projects
-        if (Object.keys(developer.projects).length > 0) {
+        // If 'all' flag is not set, only add the developer to the array if they worked on the "Training" or "SALES" projects
+        if (all || hours && (projectName === "Training" || projectName === "SALES")) {
             developers.push(developer);
         }
     }
 
     return developers;
 }
-
 
 function getCompetences(sheet, developers) {
     const COMPETENCES_START_COLUMN = 6; // 'F' column
@@ -412,7 +518,6 @@ function getCompetences(sheet, developers) {
 
     return { competenceDevelopers, competences: uniqueCompetences };
 }
-
 
 
 function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
@@ -518,6 +623,7 @@ function getColumnLetter(column) {
     return letter;
 }
 
+
 function getCurrentMonday() {
     const today = new Date();
     const day = today.getDay();
@@ -526,6 +632,7 @@ function getCurrentMonday() {
     return currentMonday;
 }
 
+
 function getCurrentSunday() {
     const today = new Date();
     const day = today.getDay();
@@ -533,6 +640,7 @@ function getCurrentSunday() {
     const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToNextSunday);
     return currentSunday;
 }
+
 
 function gatherDataInCurrentSheet() {
     const currentWeekMondayDate = getCurrentMonday();
@@ -570,6 +678,7 @@ function gatherDataInCurrentSheet() {
     }
 }
 
+
 function copyDataToCompetencesSheet() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let competencesSheet = ss.getSheetByName('Competences');
@@ -594,85 +703,26 @@ function copyDataToCompetencesSheet() {
 }
 
 
-// Словарь для перевода английских имен в русские
-const nameTranslations = {
-    "Aleqsanyan Hovhannes": "Алексанян Ованес",
-    "Alexandr Naydenov": "Александр Найденов",
-    "Alexeev Alexander": "Алексеев Александр",
-    "Alexseev Andrey": "Алексеев Андрей",
-    "Alferov Aleksei": "Алферов Алексей",
-    "Alputov Anton": "Алпутов Антон",
-    "Amandos Manas": "Амандос Манас",
-    "Anisimov Ivan": "Анисимов Иван",
-    "Antonov Maxim": "Антонов Максим",
-    "Arefkin Sergey": "Арефкин Сергей",
-    "Baranov Andrey": "Баранов Андрей",
-    "Bastov Yegor": "Бастов Егор",
-    "Bersenev Nikolay": "Берсенев Николай",
-    "Boginich Roman": "Богинич Роман",
-    "Borzov Victor": "Борзов Виктор",
-    "Brusentsov Dmitry": "Брусенцов Дмитрий",
-    "Butyugova Irina": "Бутюгова Ирина",
-    "Chikunov Anton": "Чикунов Антон",
-    "Chikunov Nikita": "Чикунов Никита",
-    "Chizhevsky Dmitrii": "Чижевский Дмитрий",
-    "Dombrovsky Nikita": "Домбровский Никита",
-    "Dreko Dmitry": "Дреко Дмитрий",
-    "Dyatlov Georgy": "Дятлов Георгий",
-    "Gasparyan Marine": "Гаспарян Марине",
-    "Gilyazov Roman": "Гилязов Роман",
-    "Glazachev Vladimir": "Глазачев Владимир",
-    "Gulyaev Vitaly": "Гуляев Виталий",
-    "Hafizov Abdullo": "Хафизов Абдулло",
-    "Harutyunyan Artur": "Арутюнян Артур",
-    "Iarovoi Kirill": "Яровой Кирилл",
-    "Iordanov Roman": "Иорданов Роман",
-    "Kiselev Vadim": "Киселев Вадим",
-    "Kocharyan Aram": "Кочарян Арам",
-    "Konovalchik Denis": "Коновальчик Денис",
-    "Krasilnikov Alexander": "Красильников Александр",
-    "Kulemin Alexander": "Кулёмин Александр",
-    "Lesnoi Sergei": "Лесной Сергей",
-    "Lisitsyn Anton": "Лисицын Антон",
-    "Malochkina Natalia": "Малочкина Наталья",
-    "Malygin Maxim": "Малыгин Максим",
-    "Mukhametshin Denis": "Мухаметшин Денис",
-    "Nasibullin Damir": "Насибуллин Дамир",
-    "Nikitin Sergey": "Никитин Сергей",
-    "Ognev Vladislav": "Огнев Владислав",
-    "Olkhovy Sergey": "Ольховый Сергей",
-    "Osmanov Servin": "Османов Сервин",
-    "Ovcharov Viktor": "Овчаров Виктор",
-    "Panfilov Alexander": "Панфилов Александр",
-    "Papachristos Alexander": "Папахристос Александр",
-    "Petrov Yegor": "Петров Егор",
-    "Pobezhimov Alexander": "Побежимов Александр",
-    "Ponomarev Mikhail": "Пономарев Михаил",
-    "Potapova Ekaterina": "Потапова Екатерина",
-    "Rassolenko Anton": "Рассоленко Антон",
-    "Ratkin Ivan": "Раткин Иван",
-    "Safin Andrey": "Сафин Андрей",
-    "Samokhin Daniil": "Самохин Даниил",
-    "Shelikhov Dmitriy": "Шелихов Дмитрий",
-    "Shilov Dmitrii": "Шилов Дмитрий",
-    "Shub Arsenii": "Шуб Арсений",
-    "Sirojiddinov Mukhiddin": "Сироджиддинов Мухиддин",
-    "Slavgorodsky Ivan": "Славгородский Иван",
-    "Slepnev Nikita": "Слепнев Никита",
-    "Sofin Vladimir": "Софин Владимир",
-    "Sotnikov Gennady": "Сотников Геннадий",
-    "Strygin Andrey": "Стрыгин Андрей",
-    "Subkhonkulov Furkat": "Субхонкулов Фуркат",
-    "Sukhanov Vladimir": "Суханов Владимир",
-    "Tolomanenko Vladislav": "Толоманенко Владислав",
-    "Trofimenko Anton": "Трофименко Антон",
-    "Tulubaev Mikhail": "Тюлюбаев Михаил",
-    "Tumakov Andrew": "Тумаков Андрей",
-    "Ugarov Rodion": "Угаров Родион",
-    "Vlasov Oleg": "Власов Олег",
-    "Yakovenko Roman": "Яковенко Роман",
-    "Zhuvagin Rodion": "Жувагин Родион"
-};
+function getNameTranslations() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const nameTranslationsSheet = ss.getSheetByName('Developers english vs russian names');
+
+    const data = nameTranslationsSheet.getDataRange().getValues();
+    const nameTranslations = {};
+
+    data.forEach(row => {
+        // Предполагается, что английские имена находятся в первом столбце (индекс 0), а русские - во втором (индекс 1)
+        const englishName = row[0];
+        const russianName = row[1];
+
+        nameTranslations[englishName] = russianName;
+    });
+
+    return nameTranslations;
+}
+
+
+const nameTranslations = getNameTranslations();
 
 
 function getDeveloperCompetenceData(developerName) {
@@ -704,6 +754,90 @@ function getDeveloperCompetenceData(developerName) {
 }
 
 
+function showOnlyBenchRows() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
+    var data = sheet.getDataRange().getValues();
 
+    sheet.showRows(1, data.length); // Обязательно показываем все строки перед скрытием
+
+    for (var i = 5; i < data.length; i++) {
+        // Проверяем колонки D (индекс 3 соответственно)
+        if (data[i][3] < 10) {
+            sheet.hideRows(i + 1);
+        }
+    }
+}
+
+
+function showAllRows() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
+    var data = sheet.getDataRange().getValues();
+
+    sheet.showRows(1, data.length);
+}
+
+function getWeekPlan() {
+    var externalSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q"; // Замените на внешний ID таблицы
+    var externalSpreadsheet = SpreadsheetApp.openById(externalSheetId);
+    var externalSheet = externalSpreadsheet.getSheetByName(sheetName);
+
+    var result = []; // Объект для хранения результатов
+
+    for (var i = 0; i < students.length; i++) {
+        var studentName = students[i][0].toString();
+        if (studentName == "") continue;
+
+        var trainingHours = 0; // Счетчик часов обучения
+        var hrHours = 0; // Счетчик HR часов
+        var projectHours = getHoursByNameAndProject(data, studentName); // вызываем функцию, чтобы собрать информацию о проектах и часах
+
+        for (var j = 0; j < 100; j++) {
+            for (var k = 0; k < data[j].length; k++) {
+                if (data[j][1].toString().startsWith(studentName) && studentName != "") {
+                    // Если это часы обучения или HR часы, то добавляем к соответствующему счетчику
+                    if (headers[k+2] == "Training") {
+                        trainingHours += data[j][k];
+                    }
+                    else if (headers[k+2] == "HR") {
+                        hrHours += data[j][k];
+                    }
+                }
+            }
+        }
+        // Собираем данные в объект
+        result.push({
+            name: studentName,
+            trainingHours: trainingHours,
+            hrHours: hrHours,
+            projectHours: projectHours
+        });
+    }
+
+    // Возвращаем собранный объект
+    return result;
+}
+
+function getHoursByNameAndProject(data, name) {
+    var hoursAndProjects = [];
+    for (var i = 0; i < data.length; i++) {
+        var rowName = data[i][3].toString();
+        //Logger.log(data[i][3]);
+        if (rowName.startsWith(name)) {
+            for (var j = 5; j < data[0].length; j++) {
+                var cellValue = data[i][j];
+                var hours = parseFloat(cellValue);
+                if (hours > 0) {
+                    var pm = data[0][j];
+                    var project = data[4][j];
+                    project = project.trim();
+                    if (pm == '') break;
+                    hoursAndProjects.push(pm + " " + project + " (" + hours.toFixed(2) + ")");
+                }
+            }
+            break;
+        }
+    }
+    return hoursAndProjects.join(', ');
+}
 
 
