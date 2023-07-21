@@ -384,22 +384,78 @@ function generateLastWeekReportForCurrentPM() {
 }
 
 
+function getScrumFilesData(fromDate, toDate) {
+    const spreadsheetId = "133dteyNbEFrZgxxIDnI3CytGRGyk_t6U3uUpgNAN0nc";
+    const sheetName = "Scrum files";
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const scrumFilesSheet = ss.getSheetByName(sheetName);
 
-function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
+    // Retrieve list of scrum files urls starting from the 3rd row of the 'B' column
+    const scrumFilesUrls = scrumFilesSheet.getRange('B3:B' + scrumFilesSheet.getLastRow()).getValues().flat();
+
+    if(scrumFilesUrls.length == 0) {
+        Logger.log('No matching files found.');
+        return;
+    }
+
+    let data = {};
+    for (let url of scrumFilesUrls) {
+        if (url) { // check if the cell isn't empty
+            const externalFile = SpreadsheetApp.openByUrl(url);
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            const monthSheetsToProcess = monthNames.filter(monthName => externalFile.getSheetByName(monthName));
+
+            for (let monthSheetName of monthSheetsToProcess) {
+                const externalSheet = externalFile.getSheetByName(monthSheetName);
+                const lastRow = externalSheet.getLastRow();
+                const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+                monthSheetData.forEach(function(rowData) {
+                    if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
+                        const dateTime = new Date(rowData[0]);
+                        if (dateTime >= fromDate && dateTime <= toDate) {
+                            const developer = externalFile.getName(); // Here we reference the filename of the external file
+                            const dateScrum = Utilities.formatDate(rowData[0], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy");
+                            const typeScrum = rowData[1];
+                            const projectScrum = rowData[2];
+                            const hoursScrum = rowData[4];
+                            if (!data[developer]) {
+                                data[developer] = [];
+                            }
+                            data[developer].push({date: dateScrum, type: typeScrum, project: projectScrum, hours: hoursScrum});
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    Logger.log(JSON.stringify(data)); // Log the entire data object
+    return data;
+}
+
+
+
+
+function getScrumFilesDataOld(lastWeekMondayDate, lastWeekSundayDate) {
     const scrumFilesFolderId = "1AnMMx9rnnQE7r2KoodgYZP1eukycY0lJ";
     const folder = DriveApp.getFolderById(scrumFilesFolderId);
     const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-    const startYearMonthName = `${lastWeekMondayDate.getFullYear()} ${(lastWeekMondayDate.getMonth() + 1).toString().padStart(2, '0')} ${monthNames[lastWeekMondayDate.getMonth()]}`;
-    const endYearMonthName = `${lastWeekSundayDate.getFullYear()} ${(lastWeekSundayDate.getMonth() + 1).toString().padStart(2, '0')} ${monthNames[lastWeekSundayDate.getMonth()]}`;
 
-    Logger.log(`Looking for files: ${startYearMonthName} and ${endYearMonthName}`);
+    // Create an array for month names between lastWeekMondayDate and lastWeekSundayDate
+    let monthsToProcess = [];
+    for (let date = new Date(lastWeekMondayDate); date <= lastWeekSundayDate; date.setMonth(date.getMonth() + 1)) {
+        monthsToProcess.push(monthNames[date.getMonth()]);
+    }
+
+    Logger.log(`Looking for files: ${monthsToProcess.join(', ')}`);
 
     const filesIterator = folder.getFiles();
     let scrumFiles = [];
     while (filesIterator.hasNext()) {
         const file = filesIterator.next();
         Logger.log(`Checking file: ${file.getName()}`);
-        if (file.getName() === startYearMonthName || file.getName() === endYearMonthName) {
+        if (monthsToProcess.some(monthName => file.getName().includes(monthName))) {
             scrumFiles.push(file);
         }
     }
@@ -415,54 +471,64 @@ function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
         Logger.log(`Processing file: ${file.getName()}`);
         const fileId = file.getId();
         const ss = SpreadsheetApp.openById(fileId);
-        const sheet = ss.getSheetByName('СкрамФайлы');
-        let columnNumber = 2;
-        while (true) {
-            const columnLetter = getColumnLetter(columnNumber);
-            const urlCell = sheet.getRange(`${columnLetter}4`);
-            const url = urlCell.getValue();
-            if (url === "") {
-                Logger.log(`No more URLs found in column ${columnLetter}.`);
-                break;
-            }
-            Logger.log(`Opening URL: ${url}`);
-            const externalFile = SpreadsheetApp.openByUrl(url);
-            const externalSheet = externalFile.getSheetByName('Июль');
-            const lastRow = externalSheet.getLastRow();
-            Logger.log(`Reading data from URL: ${url}, ${lastRow} rows found.`);
 
-            const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+        // Iterate over all required months for each file
+        for (let monthName of monthsToProcess) {
+            const sheet = ss.getSheetByName('СкрамФайлы');
 
-            if(monthSheetData.length == 0) {
-                Logger.log('No monthSheetData found.');
-                break;
-            }
-
-            monthSheetData.forEach(function(rowData) {
-                if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
-                    const dateTime = new Date(rowData[0]);
-                    if (dateTime >= lastWeekMondayDate && dateTime <= lastWeekSundayDate) {
-                        const developer = externalFile.getName(); // Here we reference the filename of the external file
-                        const dateScrum = Utilities.formatDate(rowData[0], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), "dd/MM/yyyy");
-                        const typeScrum = rowData[1];
-                        const projectScrum = rowData[2];
-                        const hoursScrum = rowData[4];
-                        if (!data[developer]) {
-                            data[developer] = [];
-                        }
-                        data[developer].push({date: dateScrum, type: typeScrum, project: projectScrum, hours: hoursScrum});
-                        Logger.log(`${developer}, ${dateScrum}, ${typeScrum}, ${projectScrum}, ${hoursScrum}`);
+            if (sheet) {
+                let columnNumber = 2;
+                while (true) {
+                    const columnLetter = getColumnLetter(columnNumber);
+                    const urlCell = sheet.getRange(`${columnLetter}4`);
+                    const url = urlCell.getValue();
+                    if (url === "") {
+                        Logger.log(`No more URLs found in column ${columnLetter}.`);
+                        break;
                     }
-                }
-            });
+                    Logger.log(`Opening URL: ${url}`);
+                    const externalFile = SpreadsheetApp.openByUrl(url);
+                    const externalSheet = externalFile.getSheetByName(monthName);
+                    const lastRow = externalSheet.getLastRow();
+                    Logger.log(`Reading data from URL: ${url}, ${lastRow} rows found.`);
 
-            columnNumber += 6;
+                    const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+                    if(monthSheetData.length == 0) {
+                        Logger.log('No monthSheetData found.');
+                        break;
+                    }
+
+                    monthSheetData.forEach(function(rowData) {
+                        if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
+                            const dateTime = new Date(rowData[0]);
+                            if (dateTime >= lastWeekMondayDate && dateTime <= lastWeekSundayDate) {
+                                const developer = externalFile.getName(); // Here we reference the filename of the external file
+                                const dateScrum = Utilities.formatDate(rowData[0], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), "dd/MM/yyyy");
+                                const typeScrum = rowData[1];
+                                const projectScrum = rowData[2];
+                                const hoursScrum = rowData[4];
+                                if (!data[developer]) {
+                                    data[developer] = [];
+                                }
+                                data[developer].push({date: dateScrum, type: typeScrum, project: projectScrum, hours: hoursScrum});
+                                Logger.log(`${developer}, ${dateScrum}, ${typeScrum}, ${projectScrum}, ${hoursScrum}`);
+                            }
+                        }
+                    });
+
+                    columnNumber += 6;
+                }
+            } else {
+                Logger.log(`Sheet "${monthName}" not found in file "${file.getName()}"`);
+            }
         }
     }
 
     Logger.log(JSON.stringify(data)); // Log the entire data object
     return data;
 }
+
 
 
 function getColumnLetter(column) {
