@@ -30,7 +30,7 @@ function onOpen() {
 
 function showStacksDialog() {
     var htmlOutput = HtmlService.createHtmlOutputFromFile('Stacks.html')
-        .setWidth(400)
+        .setWidth(600)
         .setHeight(600);
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Стеки');
 }
@@ -42,7 +42,7 @@ function showProjectsDialog() {
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Проекты');
 }
 
-function sortData(stackName) {
+function getStacks() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
 
@@ -54,17 +54,96 @@ function sortData(stackName) {
 
     var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
     var values = headerRow.getValues();
-    var sortColumn = values[0].indexOf(stackName) + 1; // Находим номер столбца для этого стека
+    var stacks = values[0].slice(11); // Получить все значения начиная с колонки L
 
-    if (sortColumn > 0) { // Если стек найден в заголовке
-        var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 6, sheet.getLastColumn());
-        showAllRows();
-        dataRange.sort([{column: sortColumn, ascending: true}]);
-        hideEmptyRows(sheet, sortColumn);
+    stacks = stacks.filter(function (value) {
+        return value !== ""; // Исключаем пустые значения
+    });
+
+    return stacks;
+}
+
+function getActiveStacks() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
     }
-    else {
+
+    var headerRow = sheet.getRange("5:5");
+    var cells = headerRow.getValues()[0];  // Изменено здесь
+    var activeStacks = [];
+    for (var i = 11; i < cells.length; i++) {
+        var cell = sheet.getRange(5, i+1);   // Получаем ячейку для проверки ее свойств
+        if (cell.getBackground() === '#000000') {
+            activeStacks.push(cells[i]);
+        }
+    }
+    return activeStacks;
+}
+
+
+function rgbToHex(rgb) {
+    if (!rgb) return '#ffffff';
+    if (rgb.indexOf('#') === 0) return rgb;
+    const match = rgb.match(/(\d+)/g);
+    if (!match) return '#ffffff';
+    return '#' + ((1 << 24) + (parseInt(match[0]) << 16) + (parseInt(match[1]) << 8) + parseInt(match[2])).toString(16).slice(1);
+}
+
+function toggleStack(stackName) {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var lastColumn = sheet.getLastColumn();
+    var headerRow = sheet.getRange("5:5");
+    var values = headerRow.getValues();
+    var stackColumn = values[0].indexOf(stackName) + 11; // Учет того, что стеки начинаются с колонки L (индекс 11), +1 потому что indexOf возвращает индекс на единицу меньше
+
+    if (stackColumn >= 11 && stackColumn <= lastColumn) { // Если стек найден в заголовке и не превышает последний столбец с данными
+        var cell = sheet.getRange(5, stackColumn);
+        var fontColor = rgbToHex(cell.getFontColor());
+
+        if (fontColor === '#ffffff') { // Если ячейка уже активна
+            cell.setBackground('#cccccc').setFontColor('black');
+        } else { // Если ячейка не активна
+            cell.setBackground('#000000').setFontColor('white');
+        }
+    } else {
         Logger.log("Не удалось найти стек " + stackName);
     }
+}
+
+
+function sortData(activeStacks) {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
+    var values = headerRow.getValues();
+
+    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 6, sheet.getLastColumn());
+    showAllRows();
+
+    var lastColumn = sheet.getLastColumn();
+    for (var i = 11; i < lastColumn; i++) { // Начинаем с колонки L (индекс 11 в массиве)
+        var cell = headerRow.getCell(1, i + 1);
+        if (activeStacks.includes(values[0][i])) {
+            // Если стек активен, делаем ячейку темной и текст белым
+            cell.setBackground('black').setFontColor('white');
+            // dataRange.sort([{column: i + 1, ascending: true}]); // Добавить сортировку для активных стеков
+            hideEmptyRows(sheet, i + 1); // Скрыть строки без значений для этого стека
+        } else {
+            // Если стек не активен, делаем ячейку светло-зеленой и текст черным
+            cell.setBackground('#cccccc').setFontColor('black');
+        }
+    }
+
 }
 
 function filterByProject(projectName) {
@@ -152,6 +231,52 @@ function hideEmptyRows(sheet, sortColumn) {
         }
     }
 }
+
+
+function showOnlyBenchRows() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var data = sheet.getDataRange().getValues();
+
+    sheet.showRows(1, data.length); // Обязательно показываем все строки перед скрытием
+
+    for (var i = 5; i < data.length; i++) {
+        // Проверяем колонки D (индекс 3 соответственно)
+        if (data[i][3] < 10) {
+            sheet.hideRows(i + 1);
+        }
+    }
+}
+
+function showAllRows() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var data = sheet.getDataRange().getValues();
+    sheet.showRows(1, data.length);
+
+    // Сбрасываем цвет фона и текста заголовков стеков
+    var headerRow = sheet.getRange("5:5");
+    var lastColumn = sheet.getLastColumn();
+    for (var i = 11; i < lastColumn; i++) {
+        var cell = headerRow.getCell(1, i + 1);
+        cell.setBackground('#cccccc').setFontColor('black');
+    }
+}
+
 
 
 function checkOAuthToken() {
@@ -1042,29 +1167,6 @@ function getDeveloperCompetenceData(developerName) {
 }
 
 
-function showOnlyBenchRows() {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
-    var data = sheet.getDataRange().getValues();
-
-    sheet.showRows(1, data.length); // Обязательно показываем все строки перед скрытием
-
-    for (var i = 5; i < data.length; i++) {
-        // Проверяем колонки D (индекс 3 соответственно)
-        if (data[i][3] < 10) {
-            sheet.hideRows(i + 1);
-        }
-    }
-}
-
-
-function showAllRows() {
-    //var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var data = sheet.getDataRange().getValues();
-    sheet.showRows(1, data.length);
-}
-
-
 function getWeekPlan() {
     var externalSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q"; // Замените на внешний ID таблицы
     var externalSpreadsheet = SpreadsheetApp.openById(externalSheetId);
@@ -1317,7 +1419,6 @@ function insertSumFormulas(all) {
     }
 }
 
-
 function getStacks() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
@@ -1329,5 +1430,12 @@ function getStacks() {
     var stackRow = sheet.getRange("5:5");
     var values = stackRow.getValues();
     var stacks = values[0].slice(11); // Получить все значения начиная с колонки L
+
+    // Исключить пустые ячейки из массива
+    stacks = stacks.filter(function(stack) {
+        return stack !== '';
+    });
+
     return stacks;
 }
+

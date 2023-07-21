@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        button {
+            margin: 5px;
+        }
+        body {
+            padding: 10px;
+        }
+        .btn-active {
+            background-color: black;
+            color: white;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 2;
+            cursor: pointer;
+        }
+        .spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .spinner svg circle {
+            fill: none;
+            stroke: url(#gradient);
+            stroke-width: 6;
+            stroke-linecap: round;
+            animation: rotate 2s linear infinite;
+            transform-origin: center;
+        }
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <button class="btn btn-primary" onclick="google.script.run.showAllRows()">Показать всех</button>
+    <br><br>
+    <div id="stacks" class="row"></div>
+</div>
+<div id="overlay" class="overlay">
+    <div class="spinner">
+        <svg width="100" height="100" viewBox="0 0 50 50">
+            <defs>
+                <linearGradient id="gradient" x1="50%" y1="0%" x2="50%" y2="100%" spreadMethod="pad">
+                    <stop offset="0%" stop-color="#ff0000" stop-opacity="1"></stop>
+                    <stop offset="17%" stop-color="#ff7f00" stop-opacity="1"></stop>
+                    <stop offset="33%" stop-color="#ffff00" stop-opacity="1"></stop>
+                    <stop offset="50%" stop-color="#00ff00" stop-opacity="1"></stop>
+                    <stop offset="67%" stop-color="#0000ff" stop-opacity="1"></stop>
+                    <stop offset="83%" stop-color="#4b0082" stop-opacity="1"></stop>
+                    <stop offset="100%" stop-color="#8f00ff" stop-opacity="1"></stop>
+                </linearGradient>
+            </defs>
+            <circle cx="25" cy="25" r="20" stroke-dasharray="126" stroke-dashoffset="0"></circle>
+        </svg>
+    </div>
+</div>
+
+<script>
+    var activeStacks = [];
+
+    // При загрузке страницы вызвать функцию Apps Script для получения стеков
+    document.getElementById('overlay').style.display = 'block';
+    google.script.run.withSuccessHandler(function(stacks) {
+        google.script.run.withSuccessHandler(function(activeStacks) {
+            buildStackButtons(stacks, activeStacks);
+            document.getElementById('overlay').style.display = 'none';
+        }).getActiveStacks();
+    }).getStacks();
+
+    function buildStackButtons(stacks, activeStacks) {
+        const stacksDiv = document.getElementById('stacks');
+
+        // Разделить стеки на группы по 5
+        let stackGroups = [];
+        for (let i = 0; i < stacks.length; i += 5) {
+            stackGroups.push(stacks.slice(i, i + 5));
+        }
+
+        stackGroups.forEach(group => {
+            // Создать колонку для каждой группы стеков
+            const col = document.createElement('div');
+            col.className = 'col';
+
+            group.forEach(stack => {
+                // Создать кнопку для каждого стека
+                const button = document.createElement('button');
+                button.className = 'btn btn-secondary btn-block';
+                button.textContent = stack;
+                button.onclick = function() {
+                    if (button.className.includes('btn-active')) {
+                        // Если кнопка уже активна, отключить ее
+                        button.className = 'btn btn-secondary btn-block';
+                        button.textContent = stack;
+                        activeStacks = activeStacks.filter(s => s !== stack);
+                    } else {
+                        // Если кнопка не активна, включить ее
+                        button.className = 'btn btn-secondary btn-block btn-active';
+                        button.textContent = '✓ ' + stack;
+                        activeStacks.push(stack);
+                    }
+                    document.getElementById('overlay').style.display = 'block';
+                    google.script.run.withSuccessHandler(function() {
+                        document.getElementById('overlay').style.display = 'none';
+                        if (button.className.includes('btn-active')) {
+                            button.textContent = '✓ ' + stack;
+                        } else {
+                            button.textContent = stack;
+                        }
+                    }).sortData(activeStacks);
+                };
+
+                // Проверить, является ли стек активным
+                if (activeStacks.includes(stack)) {
+                    button.className += ' btn-active';
+                    button.textContent = '✓ ' + stack;
+                }
+
+                // Добавить кнопку в колонку
+                col.appendChild(button);
+            });
+
+            // Добавить колонку в div
+            stacksDiv.appendChild(col);
+        });
+    }
+</script>
+</body>
+</html>
