@@ -1,20 +1,158 @@
+var monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const nameTranslations = getNameTranslations();
+
+
 function saveOAuthToken() {
     var token = ScriptApp.getOAuthToken();
     PropertiesService.getScriptProperties().setProperty('OAUTH_TOKEN', token);
 }
 
+
 function onOpen() {
     var ui = SpreadsheetApp.getUi();
-    ui.createMenu('Custom Menu')
-        .addItem('Save OAuth Token', 'saveOAuthToken')
-        .addItem('Generate SALES report', 'generateSalesReportCheckOAuth')
-        .addItem('Generate ALL report', 'generateAllReportCheckOAuth')
-        .addItem('Update scrum files data for current week in "Scrum files for current week"', 'gatherDataInCurrentSheetCheckOAuth')
-        .addItem('Update developers competences in "Competences"', 'copyDataToCompetencesSheetCheckOAuth')
-        .addItem('Show only bench rows', 'showOnlyBenchRows')
-        .addItem('Show all rows', 'showAllRows')
+    ui.createMenu('Обновление')
+        .addItem('Получить токен', 'saveOAuthToken')
+        .addItem('Обновить SALES report', 'generateSalesReportCheckOAuth')
+        .addItem('Обновить ALL report', 'generateAllReportCheckOAuth')
+        .addItem('Обновить "Scrum files for current week"', 'gatherDataInCurrentSheetCheckOAuth')
+        .addItem('Обновить "Competences"', 'copyDataToCompetencesSheetCheckOAuth')
+        .addItem('Обновить "DeveloperStackData"', 'updateDeveloperStackDataCheckOAuth')
+        .addToUi();
+    ui.createMenu('Фильтры')
+        .addItem('Показать всех', 'showAllRows')
+        .addItem('Только бенч', 'showOnlyBenchRows')
+        .addItem('Выбор стеков', 'showStacksDialog')
+        //.addItem('Выбор проектов', 'showProjectsDialog')
+        .addItem('Сортировать по A-Z', 'sortDataAscending')
+        .addItem('Сортировать по Z-A', 'sortDataDescending')
         .addToUi();
 }
+
+function showStacksDialog() {
+    var htmlOutput = HtmlService.createHtmlOutputFromFile('Stacks.html')
+        .setWidth(400)
+        .setHeight(600);
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Стеки');
+}
+
+function showProjectsDialog() {
+    var htmlOutput = HtmlService.createHtmlOutputFromFile('Projects.html')
+        .setWidth(400)
+        .setHeight(600);
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Проекты');
+}
+
+function sortData(stackName) {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
+    var values = headerRow.getValues();
+    var sortColumn = values[0].indexOf(stackName) + 1; // Находим номер столбца для этого стека
+
+    if (sortColumn > 0) { // Если стек найден в заголовке
+        var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 6, sheet.getLastColumn());
+        showAllRows();
+        dataRange.sort([{column: sortColumn, ascending: true}]);
+        hideEmptyRows(sheet, sortColumn);
+    }
+    else {
+        Logger.log("Не удалось найти стек " + stackName);
+    }
+}
+
+function filterByProject(projectName) {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var lastRow = sheet.getLastRow();
+    var dataRange = sheet.getRange(6, 6, lastRow - 5, 2); // Колонки F и G, начиная с 6-й строки и до конца
+    var values = dataRange.getValues();
+
+    // Показать все строки перед применением нового фильтра
+    showAllRows();
+
+    // Пройти через все строки и скрыть те, которые не содержат projectName
+    var rowsToHide = [];
+    for (var i = 0; i < values.length; i++) {
+        if (!values[i][0].includes(projectName) && !values[i][1].includes(projectName)) {
+            rowsToHide.push(i + 6); // Собираем номера строк для последующего скрытия
+        }
+    }
+    // Скрываем все строки сразу
+    for (var i = 0; i < rowsToHide.length; i++) {
+        sheet.hideRows(rowsToHide[i]);
+    }
+}
+
+function sortDataAscending() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var sortColumn = sheet.getActiveCell().getColumn();
+
+    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
+
+    showAllRows();
+    dataRange.sort([{column: sortColumn, ascending: true}]);
+}
+
+function sortDataDescending() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var sortColumn = sheet.getActiveCell().getColumn();
+
+    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
+
+    showAllRows();
+    dataRange.sort([{column: sortColumn, ascending: false}]);
+}
+
+
+function hideEmptyRows(sheet, sortColumn) {
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+        return;
+    }
+
+    var dataRange = sheet.getRange(6, sortColumn, sheet.getLastRow() - 5);
+    var data = dataRange.getValues();
+
+    for (var i = 0; i < data.length; i++) {
+        if (data[i][0] === "" || data[i][0] === null) {
+            sheet.hideRows(i + 6); // Скрыть пустые строки
+        }
+    }
+}
+
 
 function checkOAuthToken() {
     var token = PropertiesService.getScriptProperties().getProperty('OAUTH_TOKEN');
@@ -46,12 +184,40 @@ function checkOAuthToken() {
     }
 }
 
+
+
+
+function updateDeveloperStackDataCheckOAuth() {
+    // Проверка наличия OAuth-токена
+    var hasToken = checkOAuthToken();
+
+    if (hasToken) {
+        // Токен присутствует, выполняем функцию updateDeveloperStackData()
+        updateDeveloperStackData();
+    } else {
+        // Токен отсутствует, отображаем диалоговое окно пользователю
+        var response = Browser.msgBox(
+            "OAuth Token Required",
+            "Please obtain an OAuth token by clicking the 'OK' button.",
+            Browser.Buttons.OK_CANCEL
+        );
+
+        if (response === Browser.Buttons.OK) {
+            // Пользователь нажал OK, выполняем действия для получения токена
+            saveOAuthToken();
+        } else {
+            // Пользователь нажал Cancel, не выполняем функцию parseData()
+            return;
+        }
+    }
+}
+
 function copyDataToCompetencesSheetCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
-        // Токен присутствует, выполняем функцию generateSalesReport()
+        // Токен присутствует, выполняем функцию copyDataToCompetencesSheet()
         copyDataToCompetencesSheet();
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
@@ -72,12 +238,17 @@ function copyDataToCompetencesSheetCheckOAuth() {
 }
 
 
+function generateSalesReportUpdate() {
+    generateSalesReport(false);
+}
+
+
 function generateAllReportCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
-        // Токен присутствует, выполняем функцию generateSalesReport()
+        // Токен присутствует, выполняем функцию generateSalesReport(true)
         generateSalesReport(true);
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
@@ -97,13 +268,14 @@ function generateAllReportCheckOAuth() {
     }
 }
 
+
 function generateSalesReportCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
         // Токен присутствует, выполняем функцию generateSalesReport()
-        generateSalesReport();
+        generateSalesReport(false);
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
         var response = Browser.msgBox(
@@ -121,6 +293,7 @@ function generateSalesReportCheckOAuth() {
         }
     }
 }
+
 
 function gatherDataInCurrentSheetCheckOAuth() {
     // Проверка наличия OAuth-токена
@@ -147,9 +320,8 @@ function gatherDataInCurrentSheetCheckOAuth() {
     }
 }
 
-var monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-function generateSalesReport(all) {
+function generateSalesReport(all = false) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     let reportName = "SALES report"
@@ -174,10 +346,6 @@ function generateSalesReport(all) {
     const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
     const workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
 
-    // const competencesSheetId = "1dblvYXs4QfW2WbZGlU489I6Yy9o0xc6s_33w96DdXlA";
-    // const competencesSpreadsheet = SpreadsheetApp.openById(competencesSheetId);
-    // const competencesSheet = competencesSpreadsheet.getSheetByName('Компетенции Dev');
-
     const currentWeekMondayDate = new Date();
     currentWeekMondayDate.setDate(currentWeekMondayDate.getDate() - currentWeekMondayDate.getDay() + (currentWeekMondayDate.getDay() == 0 ? -6:1));
     const currentWeekSundayDate = new Date();
@@ -199,11 +367,14 @@ function generateSalesReport(all) {
 
     let developers = getDevelopers(workloadSheet, all);
 
+    Logger.log(developers.length);
+
     showAllRows();
 
     // Initialize report
     reportSheet.clearContents();
     reportSheet.getRange('B3').setValue( reportName + ` for ${currentWeekMondayString} - ${currentWeekSundayString}`).setFontSize(20);
+    reportSheet.getRange('L3').setValue('для сортировки выделите ячейку в 5й строке и нажмите "Сортировать" или используйте дополнительные инструменты поиска меню "Фильтры"').setFontSize(9);
 
     // Initialize the header row
     reportSheet.getRange('B5').setValue('Developer').setVerticalAlignment("middle");
@@ -223,10 +394,11 @@ function generateSalesReport(all) {
     for (let developer of developers) {
         if(!developer.name) continue;
         let developerName = developer.name.split("(")[0].trim();
-        let stackData = getDeveloperStackData(developerName);
+        let stackData = getDeveloperStackDataFromSheet(developerName);
 
         for (let stack in stackData) {
             if(stack != '') {
+                //stack = stack.toUpperCase();
                 if (!allStacks.hasOwnProperty(stack)) {
                     allStacks[stack] = 0;
                 }
@@ -234,16 +406,15 @@ function generateSalesReport(all) {
             }
         }
     }
-
     let sortedStacks = Object.keys(allStacks).sort((a, b) => allStacks[b] - allStacks[a]);
 
     let n = 0;
     for (let stack of sortedStacks) {
+        //stack = stack.toUpperCase();
         n++;
         reportSheet.getRange(5, column).setValue(stack).setVerticalAlignment("middle").setHorizontalAlignment("center").setTextRotation(90).setBackground("#cccccc").setFontSize(9);
         reportSheet.setColumnWidth(column, 25);
         column++;
-        if(n > 12) break;
     }
 
 
@@ -258,7 +429,7 @@ function generateSalesReport(all) {
         let trainingHours = developer.projects['Training'] || 0;
         let salesHours = developer.projects['SALES'] || 0;
 
-        let stackData = getDeveloperStackData(developerName);
+        let stackData = getDeveloperStackDataFromSheet(developerName);
 
         if (trainingHours >= 10) {
             // Выделить строку зеленым цветом
@@ -276,9 +447,9 @@ function generateSalesReport(all) {
         if (profileLink) {
             reportSheet.getRange(row, 8).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
         }
-        let competenceText = competenceData['Инструменты\nБиблиотеки\nСистемы'] ?? '';
+        let competenceText = competenceData['Инструменты\nБиблиотеки\nСитстемы'] ?? '';
         reportSheet.getRange(row, 9).setValue(competenceData['Основной стек'] ?? '').setVerticalAlignment("middle");
-        reportSheet.getRange(row, 10).setValue(competenceData['Дополнительный стек'] ?? '').setVerticalAlignment("middle").setNote(competenceText);
+        reportSheet.getRange(row, 10).setValue(competenceData['Дополнительный стек'] ?? '').setNote(competenceText).setVerticalAlignment("middle");
         reportSheet.getRange(row, 11).setValue(
             (competenceData['Обучаемость'] ?? '') + '  ' +
             (competenceData['Стрессоустойчивость'] ?? '') + '  ' +
@@ -307,15 +478,44 @@ function generateSalesReport(all) {
                 cell.setBackground("#f4a460");  // Цвет для Senior (Светло-коричневый)
             }
             column++;
-            if(n > 12) break;
         }
         row++;
     }
 
     // Set the border
     reportSheet.getRange(5, 2, row-5, column-2).setBorder(true, true, true, true, true, true);
+    insertSumFormulas(all);
+    let lastColumn = reportSheet.getLastColumn();
+
+    // определите номер строки, куда нужно вставить итоговые значения (после последней строки с данными)
+    let totalRow = reportSheet.getLastRow() + 1;
+
+    reportSheet.getRange(4, 11).setValue('доступные ресурсы:');
+    // начиная со столбца L (12 в системе A1) и до последнего столбца
+    for(let i = 12; i <= lastColumn; i++) {
+        // вы можете использовать функцию SUMIF в Google Sheets, которая будет суммировать значения в столбце A
+        // для тех строк, где значение в данном столбце (i) непустое
+        let formula = `=SUMIF(L6:L${totalRow-1}, "<>", A6:A${totalRow-1})`;
+
+        // заменим L на текущий столбец в цикле
+        formula = formula.replace(/L/g, getColumnLetter(i));
+
+        // вставляем формулу в ячейку
+        reportSheet.getRange(4, i).setFormula(formula);
+    }
 }
 
+
+// Функция, преобразующая номер столбца в букву
+function getColumnLetter(columnNumber) {
+    let temp, letter = '';
+    while (columnNumber > 0) {
+        temp = (columnNumber - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        columnNumber = (columnNumber - temp - 1) / 26;
+    }
+    return letter;
+}
 
 function getDeveloperStackData(developerName) {
     let data = getDeveloperCompetenceData(developerName);
@@ -329,6 +529,37 @@ function getDeveloperStackData(developerName) {
         let stack = stackLine.substring(0, lastSpaceIndex).trim();
         let level = stackLine.substring(lastSpaceIndex + 1);
 
+        if (level) {
+            level = level.toLowerCase().trim().replace('middle', 'mid').replace('junior', 'jun').replace('senior', 'sr').replace('?', '').replace('nonchecked', '');
+        }
+        if (level != 'nonchecked') stackData[stack] = level || '';
+    });
+
+    return stackData;
+}
+
+function getDeveloperStackDataFromSheet(developerNameRussian) {
+    let namesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Developers english vs russian names');
+    let namesData = namesSheet.getRange(2, 1, namesSheet.getLastRow(), 2).getValues();
+
+    let nameMatch = namesData.find(row => row[1] === developerNameRussian);
+    if (!nameMatch) {
+        Logger.log(`Разработчик с именем ${developerNameRussian} не найден в листе 'Developers english vs russian names'`);
+        return {};
+    }
+
+    let developerName = nameMatch[0]; // Получить имя на английском
+
+    let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DeveloperStackData');
+    let data = sheet.getRange(2, 1, sheet.getLastRow(), 6).getValues();
+    let developerData = data.filter(row => row[0] === developerName);
+    let stackData = {};
+
+    developerData.forEach(row => {
+        let stack = row[2]; // Технология
+        let level = row[3]; // Уровень
+
+        // Подобно тому, как вы обрабатывали уровни в предыдущей функции
         if (level) {
             level = level.toLowerCase().trim().replace('middle', 'mid').replace('junior', 'jun').replace('senior', 'sr').replace('?', '').replace('nonchecked', '');
         }
@@ -433,6 +664,9 @@ function getDevelopers(workloadSheet, all) {
     for (let i = 5; i < workloadData.length; i++) {
         // Get the developer's name, which is assumed to be in the 4th column
         let developerName = workloadData[i][3];
+        developerName = developerName.split("(")[0].trim();
+
+        Logger.log(developerName);
 
         var projectHours = getHoursByNameAndProject(workloadData, developerName);
 
@@ -447,18 +681,24 @@ function getDevelopers(workloadSheet, all) {
 
         // Create a new developer object
         let developer = {name: developerName, projectHours, projects: {}};
+        let workedOnTraining = false;
+        let workedOnSales = false;
 
-        for (let j = 1; j < workloadData[i].length; j++) {
-            let hours = workloadData[i][j];
+        for (let j = 5; j < workloadData[i].length; j++) {
+            hours = workloadData[i][j] || 0;
             let projectName = projects[j - 1];
 
-            if (hours) {
+            if (hours>0) {
                 developer.projects[projectName] = hours;
+                if (projectName == "Training") {
+                    workedOnTraining = true;
+                } else if (projectName == "SALES") {
+                    workedOnSales = true;
+                }
             }
         }
 
-        // If 'all' flag is not set, only add the developer to the array if they worked on the "Training" or "SALES" projects
-        if (all || hours && (projectName === "Training" || projectName === "SALES")) {
+        if (all || (workedOnTraining || workedOnSales)) {
             developers.push(developer);
         }
     }
@@ -520,7 +760,7 @@ function getCompetences(sheet, developers) {
 }
 
 
-function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
+function getScrumFilesDataOld(lastWeekMondayDate, lastWeekSundayDate) {
     const scrumFilesFolderId = "1AnMMx9rnnQE7r2KoodgYZP1eukycY0lJ";
     const folder = DriveApp.getFolderById(scrumFilesFolderId);
     const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
@@ -604,6 +844,57 @@ function getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate) {
                 }
             } else {
                 Logger.log(`Sheet "${monthName}" not found in file "${file.getName()}"`);
+            }
+        }
+    }
+
+    Logger.log(JSON.stringify(data)); // Log the entire data object
+    return data;
+}
+
+
+function getScrumFilesData(fromDate, toDate) {
+    const spreadsheetId = "133dteyNbEFrZgxxIDnI3CytGRGyk_t6U3uUpgNAN0nc";
+    const sheetName = "Scrum files";
+    const ss = SpreadsheetApp.openById(spreadsheetId);
+    const scrumFilesSheet = ss.getSheetByName(sheetName);
+
+    // Retrieve list of scrum files urls starting from the 3rd row of the 'B' column
+    const scrumFilesUrls = scrumFilesSheet.getRange('B3:B' + scrumFilesSheet.getLastRow()).getValues().flat();
+
+    if(scrumFilesUrls.length == 0) {
+        Logger.log('No matching files found.');
+        return;
+    }
+
+    let data = {};
+    for (let url of scrumFilesUrls) {
+        if (url) { // check if the cell isn't empty
+            const externalFile = SpreadsheetApp.openByUrl(url);
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            const monthSheetsToProcess = monthNames.filter(monthName => externalFile.getSheetByName(monthName));
+
+            for (let monthSheetName of monthSheetsToProcess) {
+                const externalSheet = externalFile.getSheetByName(monthSheetName);
+                const lastRow = externalSheet.getLastRow();
+                const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+                monthSheetData.forEach(function(rowData) {
+                    if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
+                        const dateTime = new Date(rowData[0]);
+                        if (dateTime >= fromDate && dateTime <= toDate) {
+                            const developer = externalFile.getName(); // Here we reference the filename of the external file
+                            const dateScrum = Utilities.formatDate(rowData[0], ss.getSpreadsheetTimeZone(), "dd/MM/yyyy");
+                            const typeScrum = rowData[1];
+                            const projectScrum = rowData[2];
+                            const hoursScrum = rowData[4];
+                            if (!data[developer]) {
+                                data[developer] = [];
+                            }
+                            data[developer].push({date: dateScrum, type: typeScrum, project: projectScrum, hours: hoursScrum});
+                        }
+                    }
+                });
             }
         }
     }
@@ -722,9 +1013,6 @@ function getNameTranslations() {
 }
 
 
-const nameTranslations = getNameTranslations();
-
-
 function getDeveloperCompetenceData(developerName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const competencesSheet = ss.getSheetByName('Competences');
@@ -770,11 +1058,12 @@ function showOnlyBenchRows() {
 
 
 function showAllRows() {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
+    //var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("SALES report");
+    var sheet = SpreadsheetApp.getActiveSheet();
     var data = sheet.getDataRange().getValues();
-
     sheet.showRows(1, data.length);
 }
+
 
 function getWeekPlan() {
     var externalSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q"; // Замените на внешний ID таблицы
@@ -817,6 +1106,7 @@ function getWeekPlan() {
     return result;
 }
 
+
 function getHoursByNameAndProject(data, name) {
     var hoursAndProjects = [];
     for (var i = 0; i < data.length; i++) {
@@ -837,7 +1127,207 @@ function getHoursByNameAndProject(data, name) {
             break;
         }
     }
-    return hoursAndProjects.join(', ');
+    return hoursAndProjects.join(' | ');
+}
+
+function updateDeveloperStackData() {
+    Logger.log('Начало обработки файлов');
+
+    var folder = DriveApp.getFolderById('15cKH1ynPdkLLv-UXLToNUCy8QrfOCTXm');
+    var files = folder.getFiles();
+    var output = [];
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = spreadsheet.getSheetByName('DeveloperStackData');
+
+    if (sheet == null) {
+        sheet = spreadsheet.insertSheet('DeveloperStackData');
+        Logger.log('Лист "DeveloperStackData" создан');
+    } else {
+        sheet.clear();
+        Logger.log('Лист "DeveloperStackData" очищен');
+    }
+
+    while (files.hasNext()) {
+        var file = files.next();
+        var fileName = file.getName();
+
+        if (fileName.toLowerCase().includes('personal')) {
+            Logger.log('Пропущен файл: ' + fileName);
+            continue;
+        }
+
+        Logger.log('Обработка файла: ' + fileName);
+        var fileSpreadsheet = SpreadsheetApp.openById(file.getId());
+        var fileSheet = fileSpreadsheet.getSheets()[0];
+
+        output.push(...getDataFromRange(fileSheet, 'A:D', 'Основной', fileName));
+        output.push(...getDataFromRange(fileSheet, 'E:H', 'Дополнительный', fileName));
+    }
+
+    var currentTime = new Date();
+    currentTime.setTime(currentTime.getTime() + 4 * 60 * 60 * 1000);
+    sheet.appendRow([currentTime.toString()]);
+    sheet.appendRow(['Имя разработчика', 'Тип', 'Технология', 'Уровень', 'Желание/Нежелание', 'Стек']);
+
+    sheet.getRange(3, 1, output.length, output[0].length).setValues(output);
+    correctDataInDeveloperStackData();
+    Logger.log('Данные записаны в лист');
+}
+
+function getDataFromRange(sheet, range, stackType, developerName) {
+    Logger.log('Сбор данных из диапазона: ' + range);
+
+    var data = sheet.getRange(range).getValues();
+    var output = [];
+
+    for (var i = 4; i < data.length; i++) {
+        var row = data[i];
+        if (row[0] === '') {
+            break;
+        }
+        output.push([developerName, ...row, stackType]);
+    }
+
+    Logger.log('Данные из диапазона ' + range + ' собраны');
+    return output;
+}
+
+function correctDataInDeveloperStackData() {
+    Logger.log('Начало корректировки данных');
+
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DeveloperStackData');
+    var data = sheet.getRange(3, 1, sheet.getLastRow(), 6).getValues();
+    var correctedData = [];
+
+    var types = [...new Set(data.map(row => row[1].toLowerCase()))];
+    var technologies = [...new Set(data.map(row => row[2].toLowerCase()))];
+    //var levels = [...new Set(data.map(row => row[3]))]; // Здесь мы не приводим к нижнему регистру
+
+    Logger.log('Получение уникальных значений для типов, технологий и уровней');
+
+    var typeCorrections = getCorrections(types, data, 1);
+    var technologyCorrections = getCorrections(technologies, data, 2, true, 1); // Установить порог схожести в 1 для технологий
+    //var levelCorrections = getCorrections(levels, data, 3, false); // Не применяем toLowerCase для уровней
+
+    Logger.log('Корректировка данных');
+
+    data.forEach(row => {
+        correctedData.push([
+            row[0],
+            (typeCorrections[row[1].toLowerCase()] || row[1]).trim(), // Применяем .trim()
+            (technologyCorrections[row[2].toLowerCase()] || row[2]).trim(), // Применяем .trim()
+            row[3].replace(' ', '').trim(), // Удалить пробелы в уровнях, применяем .toLowerCase() и .trim()
+            row[4],
+            row[5]
+        ]);
+    });
+
+    sheet.getRange(3, 1, sheet.getLastRow(), 6).setValues(correctedData);
+
+    Logger.log('Завершено: данные скорректированы и обновлены на листе');
+}
+
+// Добавить новый аргумент для определения порога для схожести
+function getCorrections(uniqueValues, data, colIndex, lowerCase = true, similarityThreshold = 2) {
+    var corrections = {};
+
+    uniqueValues.forEach(value => {
+        var similarValues = uniqueValues.filter(val => levenshtein(value, val) <= similarityThreshold);
+        var counts = similarValues.map(val => {
+            return {
+                value: val,
+                count: data.reduce((count, row) => count + ((lowerCase ? row[colIndex].toLowerCase() : row[colIndex]) === val ? 1 : 0), 0)
+            };
+        });
+        counts.sort((a, b) => b.count - a.count);
+        corrections[value] = counts[0].value;
+    });
+
+    return corrections;
 }
 
 
+
+function levenshtein(a, b) {
+    if (a.length == 0) return b.length;
+    if (b.length == 0) return a.length;
+
+    var matrix = [];
+
+    var i;
+    for (i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+
+    var j;
+    for (j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+
+    for (i = 1; i <= b.length; i++) {
+        for (j = 1; j <= a.length; j++) {
+            if (b.charAt(i-1) == a.charAt(j-1)) {
+                matrix[i][j] = matrix[i-1][j-1];
+            } else {
+                matrix[i][j] = Math.min(matrix[i-1][j-1] + 1, Math.min(matrix[i][j-1] + 1, matrix[i-1][j] + 1));
+            }
+        }
+    }
+
+    return matrix[b.length][a.length];
+};
+
+function findClosestMatch(target, array) {
+    var minDist = Infinity;
+    var match = '';
+
+    for (var i = 0; i < array.length; i++) {
+        var dist = levenshtein(target, array[i]);
+
+        if (dist < minDist) {
+            minDist = dist;
+            match = array[i];
+        }
+    }
+
+    return match;
+};
+
+function insertSumFormulas(all) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    let sheetName = "SALES report"
+    if(all) {
+        sheetName = 'ALL report';
+    }
+
+    sheet = ss.getSheetByName(sheetName);
+
+    var lastRow = sheet.getLastRow();
+    var startRow = 6; // Начальная строка, с которой нужно вставлять формулы
+    var startColumn = 1; // Начальный столбец, для которого нужно вставить формулы
+    var endColumn = 1; // Последний столбец, для которого нужно вставить формулы
+
+    for (var row = startRow; row <= lastRow; row++) {
+        for (var column = startColumn; column <= endColumn; column++) {
+            var cell = sheet.getRange(row, column);
+            var formula = "=SUM(D" + row + ":E" + row + ")";
+            cell.setFormula(formula).setVerticalAlignment("middle");
+        }
+    }
+}
+
+
+function getStacks() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
+    }
+
+    var stackRow = sheet.getRange("5:5");
+    var values = stackRow.getValues();
+    var stacks = values[0].slice(11); // Получить все значения начиная с колонки L
+    return stacks;
+}
