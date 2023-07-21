@@ -54,7 +54,7 @@ function getStacks() {
 
     var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
     var values = headerRow.getValues();
-    var stacks = values[0].slice(11); // Получить все значения начиная с колонки L
+    var stacks = values[0].slice(12); // Получить все значения начиная с колонки M
 
     stacks = stacks.filter(function (value) {
         return value !== ""; // Исключаем пустые значения
@@ -74,13 +74,33 @@ function getActiveStacks() {
     var headerRow = sheet.getRange("5:5");
     var cells = headerRow.getValues()[0];  // Изменено здесь
     var activeStacks = [];
-    for (var i = 11; i < cells.length; i++) {
+    for (var i = 12; i < cells.length; i++) {
         var cell = sheet.getRange(5, i+1);   // Получаем ячейку для проверки ее свойств
         if (cell.getBackground() === '#000000') {
             activeStacks.push(cells[i]);
         }
     }
     return activeStacks;
+}
+
+function getStacks() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
+        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
+    }
+
+    var stackRow = sheet.getRange("5:5");
+    var values = stackRow.getValues();
+    var stacks = values[0].slice(12); // Получить все значения начиная с колонки M
+
+    // Исключить пустые ячейки из массива
+    stacks = stacks.filter(function(stack) {
+        return stack !== '';
+    });
+
+    return stacks;
 }
 
 
@@ -97,9 +117,9 @@ function toggleStack(stackName) {
     var lastColumn = sheet.getLastColumn();
     var headerRow = sheet.getRange("5:5");
     var values = headerRow.getValues();
-    var stackColumn = values[0].indexOf(stackName) + 11; // Учет того, что стеки начинаются с колонки L (индекс 11), +1 потому что indexOf возвращает индекс на единицу меньше
+    var stackColumn = values[0].indexOf(stackName) + 12; // Учет того, что стеки начинаются с колонки M (индекс 12), +1 потому что indexOf возвращает индекс на единицу меньше
 
-    if (stackColumn >= 11 && stackColumn <= lastColumn) { // Если стек найден в заголовке и не превышает последний столбец с данными
+    if (stackColumn >= 12 && stackColumn <= lastColumn) { // Если стек найден в заголовке и не превышает последний столбец с данными
         var cell = sheet.getRange(5, stackColumn);
         var fontColor = rgbToHex(cell.getFontColor());
 
@@ -131,7 +151,7 @@ function sortData(activeStacks) {
     showAllRows();
 
     var lastColumn = sheet.getLastColumn();
-    for (var i = 11; i < lastColumn; i++) { // Начинаем с колонки L (индекс 11 в массиве)
+    for (var i = 12; i < lastColumn; i++) { // Начинаем с колонки M (индекс 12 в массиве)
         var cell = headerRow.getCell(1, i + 1);
         if (activeStacks.includes(values[0][i])) {
             // Если стек активен, делаем ячейку темной и текст белым
@@ -271,7 +291,7 @@ function showAllRows() {
     // Сбрасываем цвет фона и текста заголовков стеков
     var headerRow = sheet.getRange("5:5");
     var lastColumn = sheet.getLastColumn();
-    for (var i = 11; i < lastColumn; i++) {
+    for (var i = 12; i < lastColumn; i++) {
         var cell = headerRow.getCell(1, i + 1);
         cell.setBackground('#cccccc').setFontColor('black');
     }
@@ -499,21 +519,22 @@ function generateSalesReport(all = false) {
     // Initialize report
     reportSheet.clearContents();
     reportSheet.getRange('B3').setValue( reportName + ` for ${currentWeekMondayString} - ${currentWeekSundayString}`).setFontSize(20);
-    reportSheet.getRange('L3').setValue('для сортировки выделите ячейку в 5й строке и нажмите "Сортировать" или используйте дополнительные инструменты поиска меню "Фильтры"').setFontSize(9);
+    reportSheet.getRange('M3').setValue('для сортировки выделите колонку и нажмите "Сортировать" или используйте дополнительные инструменты поиска в меню "Фильтры"').setFontSize(9);
 
     // Initialize the header row
     reportSheet.getRange('B5').setValue('Developer').setVerticalAlignment("middle");
-    reportSheet.getRange('C5').setValue('English').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('D5').setValue('Training').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('E5').setValue('Sales').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('F5').setValue('Plan').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('G5').setValue('Fact').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('H5').setValue('Profile Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('I5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('J5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('K5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    reportSheet.getRange('C5').setValue('Location').setVerticalAlignment("middle");
+    reportSheet.getRange('D5').setValue('English').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('E5').setValue('Training').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('F5').setValue('Sales').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('G5').setValue('Plan').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('H5').setValue('Fact').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('I5').setValue('Profile Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('J5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('K5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.getRange('L5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
 
-    let column = 12;
+    let column = 13;
     let allStacks = {};
 
     for (let developer of developers) {
@@ -558,24 +579,25 @@ function generateSalesReport(all = false) {
 
         if (trainingHours >= 10) {
             // Выделить строку зеленым цветом
-            reportSheet.getRange(row, 2, 1, 9).setBackground("#d9ead3"); // Смените число 10 на число столбцов в вашей строке
+            reportSheet.getRange(row, 2, 1, 11).setBackground("#d9ead3"); // Смените число 11 на число столбцов в вашей строке
         }
 
-        reportSheet.getRange(row, 2).setValue(developerName).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 3).setValue(englishLevel).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 2).setValue(developerName).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 3).setValue(developer.location).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 4).setValue(englishLevel).setVerticalAlignment("middle");
 
-        reportSheet.getRange(row, 4).setValue(trainingHours).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 5).setValue(salesHours).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 6).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
-        reportSheet.getRange(row, 7).setValue(getAllocationData(developers, developerName)).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 5).setValue(trainingHours).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 6).setValue(salesHours).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 7).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 8).setValue(getAllocationData(developers, developerName)).setVerticalAlignment("middle").setWrap(true);
         let profileLink = competenceData['личное дело'] ?? '';
         if (profileLink) {
-            reportSheet.getRange(row, 8).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
+            reportSheet.getRange(row, 9).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
         }
         let competenceText = competenceData['Инструменты\nБиблиотеки\nСитстемы'] ?? '';
-        reportSheet.getRange(row, 9).setValue(competenceData['Основной стек'] ?? '').setVerticalAlignment("middle");
-        reportSheet.getRange(row, 10).setValue(competenceData['Дополнительный стек'] ?? '').setNote(competenceText).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 11).setValue(
+        reportSheet.getRange(row, 10).setValue(competenceData['Основной стек'] ?? '').setVerticalAlignment("middle");
+        reportSheet.getRange(row, 11).setValue(competenceData['Дополнительный стек'] ?? '').setNote(competenceText).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 12).setValue(
             (competenceData['Обучаемость'] ?? '') + '  ' +
             (competenceData['Стрессоустойчивость'] ?? '') + '  ' +
             (competenceData['Работа в команде'] ?? '') + '  ' +
@@ -585,7 +607,7 @@ function generateSalesReport(all = false) {
         ).setVerticalAlignment("middle").setHorizontalAlignment("center");
 
 
-        let column = 12;
+        let column = 13;
         n = 0;
 
         for (let stack of sortedStacks) {
@@ -615,15 +637,15 @@ function generateSalesReport(all = false) {
     // определите номер строки, куда нужно вставить итоговые значения (после последней строки с данными)
     let totalRow = reportSheet.getLastRow() + 1;
 
-    reportSheet.getRange(4, 11).setValue('доступные ресурсы:');
-    // начиная со столбца L (12 в системе A1) и до последнего столбца
-    for(let i = 12; i <= lastColumn; i++) {
-        // вы можете использовать функцию SUMIF в Google Sheets, которая будет суммировать значения в столбце A
-        // для тех строк, где значение в данном столбце (i) непустое
-        let formula = `=SUMIF(L6:L${totalRow-1}, "<>", A6:A${totalRow-1})`;
+    reportSheet.getRange(4, 12).setValue('доступные ресурсы:');
+    // начиная со столбца L (13 в системе A1) и до последнего столбца
+    for(let i = 13; i <= lastColumn; i++) {
+        let columnLetter = getColumnLetter(i);
 
-        // заменим L на текущий столбец в цикле
-        formula = formula.replace(/L/g, getColumnLetter(i));
+        // используем отдельные строки для замены каждого экземпляра 'M6:M' и 'M6:A'
+        let formula = `=SUMIF(M6:M${totalRow-1}, "<>", A6:A${totalRow-1})`;
+        formula = formula.replace('M6:M', `${columnLetter}6:${columnLetter}`);
+        formula = formula.replace('M6:A', `${columnLetter}6:A`);
 
         // вставляем формулу в ячейку
         reportSheet.getRange(4, i).setFormula(formula);
@@ -789,6 +811,7 @@ function getDevelopers(workloadSheet, all) {
     for (let i = 5; i < workloadData.length; i++) {
         // Get the developer's name, which is assumed to be in the 4th column
         let developerName = workloadData[i][3];
+        let developerLocation = workloadData[i][0];
         developerName = developerName.split("(")[0].trim();
 
         Logger.log(developerName);
@@ -805,7 +828,7 @@ function getDevelopers(workloadSheet, all) {
         }
 
         // Create a new developer object
-        let developer = {name: developerName, projectHours, projects: {}};
+        let developer = {name: developerName, location: developerLocation, projectHours, projects: {}};
         let workedOnTraining = false;
         let workedOnSales = false;
 
@@ -1413,29 +1436,10 @@ function insertSumFormulas(all) {
     for (var row = startRow; row <= lastRow; row++) {
         for (var column = startColumn; column <= endColumn; column++) {
             var cell = sheet.getRange(row, column);
-            var formula = "=SUM(D" + row + ":E" + row + ")";
+            var formula = "=SUM(E" + row + ":F" + row + ")";
             cell.setFormula(formula).setVerticalAlignment("middle");
         }
     }
 }
 
-function getStacks() {
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var sheetName = sheet.getName();
-
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
-    }
-
-    var stackRow = sheet.getRange("5:5");
-    var values = stackRow.getValues();
-    var stacks = values[0].slice(11); // Получить все значения начиная с колонки L
-
-    // Исключить пустые ячейки из массива
-    stacks = stacks.filter(function(stack) {
-        return stack !== '';
-    });
-
-    return stacks;
-}
 
