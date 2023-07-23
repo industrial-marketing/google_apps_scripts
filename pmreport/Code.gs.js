@@ -541,16 +541,16 @@ function getColumnLetter(column) {
     return letter;
 }
 
-function getLastSunday() {
-    const today = new Date();
-    const lastSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
-    return lastSunday;
+function getLastMonday() {
+    const currentMonday = getCurrentMonday();
+    const lastMonday = new Date(currentMonday.getFullYear(), currentMonday.getMonth(), currentMonday.getDate() - 7);
+    return lastMonday;
 }
 
-function getLastMonday() {
-    const today = new Date();
-    const lastMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay() - 6);
-    return lastMonday;
+function getLastSunday() {
+    const currentSunday = getCurrentSunday();
+    const lastSunday = new Date(currentSunday.getFullYear(), currentSunday.getMonth(), currentSunday.getDate() - 7);
+    return lastSunday;
 }
 
 function gatherDataInCurrentSheet() {
