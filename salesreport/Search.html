@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.css" />
+    <style>
+        button, input[type="text"] {
+            margin: 5px 0;
+            height: 38px;
+            border-radius: 5px;
+        }
+        body {
+            padding: 10px;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 2;
+            cursor: pointer;
+        }
+        .spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .spinner svg circle {
+            fill: none;
+            stroke: url(#gradient);
+            stroke-width: 6;
+            stroke-linecap: round;
+            animation: rotate 2s linear infinite;
+            transform-origin: center;
+        }
+        @keyframes rotate {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <button class="btn btn-primary" id="show-all-btn" onclick="resetSearch()">Показать всё</button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-8">
+            <input type="text" id="searchQuery" placeholder="Введите запрос для поиска" class="form-control" />
+        </div>
+        <div class="col-4">
+            <button class="btn btn-primary btn-block" onclick="startSearch()">Поиск</button>
+        </div>
+    </div>
+</div>
+<div id="overlay" class="overlay">
+    <div class="spinner">
+        <svg width="100" height="100" viewBox="0 0 50 50">
+            <defs>
+                <linearGradient id="gradient" x1="50%" y1="0%" x2="50%" y2="100%" spreadMethod="pad">
+                    <stop offset="0%" stop-color="#ff0000" stop-opacity="1"></stop>
+                    <stop offset="17%" stop-color="#ff7f00" stop-opacity="1"></stop>
+                    <stop offset="33%" stop-color="#ffff00" stop-opacity="1"></stop>
+                    <stop offset="50%" stop-color="#00ff00" stop-opacity="1"></stop>
+                    <stop offset="67%" stop-color="#0000ff" stop-opacity="1"></stop>
+                    <stop offset="83%" stop-color="#4b0082" stop-opacity="1"></stop>
+                    <stop offset="100%" stop-color="#8f00ff" stop-opacity="1"></stop>
+                </linearGradient>
+            </defs>
+            <circle cx="25" cy="25" r="20" stroke-dasharray="126" stroke-dashoffset="0"></circle>
+        </svg>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+<script>
+    var keywords = [];
+
+    google.script.run.withSuccessHandler(function(receivedKeywords) {
+        keywords = receivedKeywords;
+        $("#searchQuery").autocomplete({
+            minLength: 2, // минимальная длина запроса для начала поиска
+            source: function(request, response) {
+                var term = request.term.split(" ").pop(); // берем последнее слово из запроса
+                var matches = $.grep(keywords, function(keyword) { // находим все ключевые слова, которые содержат это слово
+                    return keyword.indexOf(term) >= 0;
+                });
+                matches.sort(function(a, b) { // сортируем совпадения
+                    var startsWithTermA = a.indexOf(term) === 0;
+                    var startsWithTermB = b.indexOf(term) === 0;
+
+                    if (startsWithTermA && !startsWithTermB) {
+                        return -1; // если a начинается с термина, а b нет, a идет первым
+                    }
+                    if (!startsWithTermA && startsWithTermB) {
+                        return 1; // если b начинается с термина, а a нет, b идет первым
+                    }
+                    return 0; // в противном случае, оставляем их в том же порядке
+                });
+                response(matches); // возвращаем эти совпадения
+            },
+            focus: function(event, ui) { // когда пользователь наводит мышью на подсказку
+                return false; // не делаем ничего
+            },
+            select: function(event, ui) { // когда пользователь кликает на подсказку
+                var words = this.value.split(" ");
+                words.pop(); // удаляем последнее слово (то, которое мы автодополняем)
+                words.push(ui.item.value); // добавляем выбранное пользователем слово
+                this.value = words.join(" ") + " "; // обновляем поле ввода и добавляем пробел в конце
+                return false; // не закрываем виджет автозавершения
+            }
+        });
+    }).getKeywords();
+
+    // Show spinner before running the async call
+    document.getElementById('overlay').style.display = 'block';
+
+    google.script.run.withSuccessHandler(function(receivedQuery) {
+        document.getElementById('searchQuery').value = receivedQuery;
+        document.getElementById('overlay').style.display = 'none';
+    }).getCurrentSearchQuery();
+
+    function startSearch() {
+        var query = document.getElementById('searchQuery').value;
+        document.getElementById('overlay').style.display = 'block';
+        google.script.run.withSuccessHandler(function() {
+            document.getElementById('overlay').style.display = 'none';
+        }).searchData(query);
+    }
+
+    function resetSearch() {
+        document.getElementById('overlay').style.display = 'block';
+        google.script.run.withSuccessHandler(function() {
+            document.getElementById('overlay').style.display = 'none';
+        }).showAllRows();
+    }
+
+</script>
+</body>
+</html>

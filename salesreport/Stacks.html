@@ -49,7 +49,7 @@
 </head>
 <body>
 <div class="container-fluid">
-    <button class="btn btn-primary" onclick="google.script.run.showAllRows()">Показать всех</button>
+    <button class="btn btn-primary" id="show-all-btn" onclick="resetStackSelection()">Показать всё</button>
     <br><br>
     <div id="stacks" class="row"></div>
 </div>
@@ -101,17 +101,17 @@
             group.forEach(stack => {
                 // Создать кнопку для каждого стека
                 const button = document.createElement('button');
-                button.className = 'btn btn-secondary btn-block';
+                button.className = 'btn btn-secondary btn-block stack-btn';  // Добавить класс stack-btn
                 button.textContent = stack;
                 button.onclick = function() {
                     if (button.className.includes('btn-active')) {
                         // Если кнопка уже активна, отключить ее
-                        button.className = 'btn btn-secondary btn-block';
+                        button.className = 'btn btn-secondary btn-block stack-btn';
                         button.textContent = stack;
                         activeStacks = activeStacks.filter(s => s !== stack);
                     } else {
                         // Если кнопка не активна, включить ее
-                        button.className = 'btn btn-secondary btn-block btn-active';
+                        button.className = 'btn btn-secondary btn-block btn-active stack-btn';
                         button.textContent = '✓ ' + stack;
                         activeStacks.push(stack);
                     }
@@ -129,7 +129,7 @@
                 // Проверить, является ли стек активным
                 if (activeStacks.includes(stack)) {
                     button.className += ' btn-active';
-                    button.textContent = '✓ ' + stack;
+                    button.textContent = '✓ ' + button.textContent;
                 }
 
                 // Добавить кнопку в колонку
@@ -140,6 +140,23 @@
             stacksDiv.appendChild(col);
         });
     }
+
+    function resetStackSelection() {
+        document.getElementById('overlay').style.display = 'block';
+        google.script.run.withSuccessHandler(function() {
+            // После выполнения функции showAllRows, запросить активные стеки и перестроить кнопки
+            google.script.run.withSuccessHandler(function(activeStacks) {
+                // Получить все стеки
+                let stacks = Array.from(document.getElementsByClassName('stack-btn')).map(button => button.textContent.replace('✓ ', ''));
+                // Перестроить кнопки
+                let stacksDiv = document.getElementById('stacks');
+                stacksDiv.innerHTML = '';  // Очистить текущие кнопки
+                buildStackButtons(stacks, activeStacks);  // Построить новые кнопки
+                document.getElementById('overlay').style.display = 'none';
+            }).getActiveStacks();
+        }).showAllRows();
+    }
+
 </script>
 </body>
 </html>

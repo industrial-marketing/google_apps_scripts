@@ -14,15 +14,18 @@ function onOpen() {
         .addItem('Получить токен', 'saveOAuthToken')
         .addItem('Обновить SALES report', 'generateSalesReportCheckOAuth')
         .addItem('Обновить ALL report', 'generateAllReportCheckOAuth')
+        .addItem('Обновить ALL report last week', 'generateAllReportLastWeekCheckOAuth')
         .addItem('Обновить "Scrum files for current week"', 'gatherDataInCurrentSheetCheckOAuth')
+        .addItem('Обновить "Scrum files for last week"', 'gatherDataInLastSheetCheckOAuth')
         .addItem('Обновить "Competences"', 'copyDataToCompetencesSheetCheckOAuth')
         .addItem('Обновить "DeveloperStackData"', 'updateDeveloperStackDataCheckOAuth')
         .addToUi();
     ui.createMenu('Фильтры')
-        .addItem('Показать всех', 'showAllRows')
+        .addItem('Показать всё', 'showAllRows')
         .addItem('Только бенч', 'showOnlyBenchRows')
         .addItem('Выбор стеков', 'showStacksDialog')
-        //.addItem('Выбор проектов', 'showProjectsDialog')
+        .addItem('Поиск', 'showSearchDialog')
+        .addItem('Выбор проектов', 'showProjectsDialog')
         .addItem('Сортировать по A-Z', 'sortDataAscending')
         .addItem('Сортировать по Z-A', 'sortDataDescending')
         .addToUi();
@@ -30,9 +33,9 @@ function onOpen() {
 
 function showStacksDialog() {
     var htmlOutput = HtmlService.createHtmlOutputFromFile('Stacks.html')
-        .setWidth(600)
-        .setHeight(600);
-    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Стеки');
+        .setWidth(400)
+        .setHeight(300);
+    SpreadsheetApp.getUi().showModelessDialog(htmlOutput, 'Стеки');
 }
 
 function showProjectsDialog() {
@@ -42,33 +45,21 @@ function showProjectsDialog() {
     SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Проекты');
 }
 
-function getStacks() {
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var sheetName = sheet.getName();
-
-    // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
-        return;
-    }
-
-    var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
-    var values = headerRow.getValues();
-    var stacks = values[0].slice(12); // Получить все значения начиная с колонки M
-
-    stacks = stacks.filter(function (value) {
-        return value !== ""; // Исключаем пустые значения
-    });
-
-    return stacks;
+function showSearchDialog() {
+    var htmlOutput = HtmlService.createHtmlOutputFromFile('Search.html')
+        .setWidth(400)
+        .setHeight(300);
+    SpreadsheetApp.getUi().showModelessDialog(htmlOutput, 'Поиск');
 }
 
 function getActiveStacks() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
 
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        return;
     }
 
     var headerRow = sheet.getRange("5:5");
@@ -87,18 +78,22 @@ function getStacks() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
 
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        throw 'Error: This feature is only available for the "ALL report" or "SALES report" sheets.';
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        return;
     }
 
     var stackRow = sheet.getRange("5:5");
     var values = stackRow.getValues();
-    var stacks = values[0].slice(12); // Получить все значения начиная с колонки M
 
-    // Исключить пустые ячейки из массива
-    stacks = stacks.filter(function(stack) {
-        return stack !== '';
-    });
+    let stacks = [];
+    for (let stack of values[0].slice(12)) {
+        if (stack === '') {
+            break;
+        }
+        stacks.push(stack);
+    }
 
     return stacks;
 }
@@ -139,16 +134,14 @@ function sortData(activeStacks) {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
+    showAllRows();
 
     var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
     var values = headerRow.getValues();
-
-    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 6, sheet.getLastColumn());
-    showAllRows();
 
     var lastColumn = sheet.getLastColumn();
     for (var i = 12; i < lastColumn; i++) { // Начинаем с колонки M (индекс 12 в массиве)
@@ -163,6 +156,9 @@ function sortData(activeStacks) {
             cell.setBackground('#cccccc').setFontColor('black');
         }
     }
+    // Сбрасываем поиск
+    sheet.getRange("H3").clearContent();
+    sheet.getRange("I3").clearContent();
 
 }
 
@@ -171,8 +167,8 @@ function filterByProject(projectName) {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -194,6 +190,12 @@ function filterByProject(projectName) {
     for (var i = 0; i < rowsToHide.length; i++) {
         sheet.hideRows(rowsToHide[i]);
     }
+    // Сбрасываем поиск
+    sheet.getRange("H3").clearContent();
+    sheet.getRange("I3").clearContent();
+    sheet.getRange("H3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
 }
 
 function sortDataAscending() {
@@ -201,8 +203,8 @@ function sortDataAscending() {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -210,7 +212,6 @@ function sortDataAscending() {
 
     var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
 
-    showAllRows();
     dataRange.sort([{column: sortColumn, ascending: true}]);
 }
 
@@ -219,8 +220,8 @@ function sortDataDescending() {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -228,7 +229,6 @@ function sortDataDescending() {
 
     var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
 
-    showAllRows();
     dataRange.sort([{column: sortColumn, ascending: false}]);
 }
 
@@ -237,8 +237,8 @@ function hideEmptyRows(sheet, sortColumn) {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -252,14 +252,83 @@ function hideEmptyRows(sheet, sortColumn) {
     }
 }
 
+function searchData(query) {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var lastRow = sheet.getLastRow();
+    var lastColumn = sheet.getLastColumn();
+
+    showAllRows();
+
+    var dataRange = sheet.getRange(6, 1, lastRow - 5, lastColumn); // Мы начинаем с 6-й строки и идем до последней строки
+    var values = dataRange.getValues();
+    sheet.showRows(1, values.length);
+
+    var notesColumnK = sheet.getRange(6, 11, lastRow - 5).getNotes(); // Получаем заметки из колонки K (11)
+
+    if(query) {
+        sheet.getRange("H3").setValue("Поиск по запросу:").setBackground('black').setFontColor('white');
+        sheet.getRange("I3").setValue(query).setBackground('black').setFontColor('white');
+        sheet.getRange("J3").setBackground('black').setFontColor('white');
+    } else {
+        sheet.getRange("H3").setValue("").setBackground('white').setFontColor('black');
+        sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
+        sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
+    }
+
+
+    // Скрываем все строки в диапазоне данных
+    sheet.hideRows(6, values.length);
+
+    // Преобразуем запрос в массив слов
+    var queryWords = query.toLowerCase().split(" ");
+
+    for(var i = 0; i < values.length; i++) {
+        // Если строка содержит все слова из запроса, показываем ее
+        var rowContent = values[i].join(" ") + " " + notesColumnK[i][0]; // Добавляем содержимое заметки к строке
+        var rowContentLower = rowContent.toLowerCase();
+
+        var containsAllWords = queryWords.every(function(word) {
+            return rowContentLower.includes(word);
+        });
+
+        if(containsAllWords) {
+            sheet.showRows(i + 6); // Показываем строки, начиная с 6-й строки
+        }
+    }
+}
+
+function getCurrentSearchQuery() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var query = sheet.getRange("I3").getValue();
+    return query;
+}
+
+function getKeywords() {
+    var keywordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Keywords');
+    if (!keywordSheet) {
+        return [];  // Если нет листа "Keywords", возвращаем пустой массив
+    }
+
+    // Получаем все слова из листа "Keywords"
+    var range = keywordSheet.getRange(1, 1, keywordSheet.getLastRow(), 1);
+    var values = range.getValues();
+    // values = [''];
+    // Преобразуем двумерный массив в одномерный
+    var keywords = [].concat(...values);
+
+    //keywords = [];
+    return keywords;
+}
+
+
 
 function showOnlyBenchRows() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -273,6 +342,12 @@ function showOnlyBenchRows() {
             sheet.hideRows(i + 1);
         }
     }
+    // Сбрасываем поиск
+    sheet.getRange("H3").clearContent();
+    sheet.getRange("I3").clearContent();
+    sheet.getRange("H3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
 }
 
 function showAllRows() {
@@ -280,21 +355,33 @@ function showAllRows() {
     var sheetName = sheet.getName();
 
     // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report" или "SALES report"');
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
     var data = sheet.getDataRange().getValues();
     sheet.showRows(1, data.length);
 
-    // Сбрасываем цвет фона и текста заголовков стеков
+    // Reset the background color and text color of stack headers
     var headerRow = sheet.getRange("5:5");
     var lastColumn = sheet.getLastColumn();
     for (var i = 12; i < lastColumn; i++) {
         var cell = headerRow.getCell(1, i + 1);
+        // Stop coloring when the cell is empty
+        if (cell.getValue() === "") {
+            break;
+        }
         cell.setBackground('#cccccc').setFontColor('black');
     }
+
+    // Сбрасываем поиск
+    sheet.getRange("H3").clearContent();
+    sheet.getRange("I3").clearContent();
+    sheet.getRange("H3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
+    return true;
 }
 
 
@@ -382,12 +469,6 @@ function copyDataToCompetencesSheetCheckOAuth() {
     }
 }
 
-
-function generateSalesReportUpdate() {
-    generateSalesReport(false);
-}
-
-
 function generateAllReportCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
@@ -408,6 +489,31 @@ function generateAllReportCheckOAuth() {
             saveOAuthToken();
         } else {
             // Пользователь нажал Cancel, не выполняем функцию parseData()
+            return;
+        }
+    }
+}
+
+
+function generateAllReportLastWeekCheckOAuth() {
+    // Проверка наличия OAuth-токена
+    var hasToken = checkOAuthToken();
+
+    if (hasToken) {
+        // Токен присутствует, выполняем функцию generateAllReportLastWeek(true)
+        generateSalesReport(true,true);
+    } else {
+        // Токен отсутствует, отображаем диалоговое окно пользователю
+        var response = Browser.msgBox(
+            "OAuth Token Required",
+            "Please obtain an OAuth token by clicking the 'OK' button.",
+            Browser.Buttons.OK_CANCEL
+        );
+
+        if (response === Browser.Buttons.OK) {
+            // Пользователь нажал OK, выполняем действия для получения токена
+            saveOAuthToken();
+        } else {
             return;
         }
     }
@@ -465,13 +571,25 @@ function gatherDataInCurrentSheetCheckOAuth() {
     }
 }
 
+function generateAllReportLastWeek() {
+    generateSalesReport(true, true);
+}
 
-function generateSalesReport(all = false) {
+function generateAllReport() {
+    generateSalesReport(true);
+}
+
+function generateSalesReport(all = false, isLastWeek = false) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     let reportName = "SALES report"
     if(all) {
         reportName = 'ALL report';
+    }
+
+    // Если флаг isLastWeek установлен в true, добавляем 'last week' к имени отчета
+    if(isLastWeek) {
+        reportName += ' last week';
     }
 
     reportSheet = ss.getSheetByName(reportName);
@@ -491,17 +609,22 @@ function generateSalesReport(all = false) {
     const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
     const workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
 
-    const currentWeekMondayDate = new Date();
-    currentWeekMondayDate.setDate(currentWeekMondayDate.getDate() - currentWeekMondayDate.getDay() + (currentWeekMondayDate.getDay() == 0 ? -6:1));
-    const currentWeekSundayDate = new Date();
-    currentWeekSundayDate.setDate(currentWeekSundayDate.getDate() - currentWeekSundayDate.getDay() + 7);
+    let mondayDate, sundayDate;
 
-    const currentWeekMondayString = Utilities.formatDate(currentWeekMondayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
-    const currentWeekSundayString = Utilities.formatDate(currentWeekSundayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+    if (isLastWeek) {
+        mondayDate = getLastMonday();
+        sundayDate = getLastSunday();
+    } else {
+        mondayDate = getCurrentMonday();
+        sundayDate = getCurrentSunday();
+    }
 
-    let workloadSheetName = currentWeekMondayDate.getMonth() === currentWeekSundayDate.getMonth() ?
-        `${currentWeekMondayString.split(" ")[0]}-${currentWeekSundayString.split(" ")[0]} ${currentWeekSundayString.split(" ")[1]}` :
-        `${currentWeekMondayString}-${currentWeekSundayString.split(" ")[0]}`;
+    const mondayString = Utilities.formatDate(mondayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+    const sundayString = Utilities.formatDate(sundayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+
+    let workloadSheetName = mondayDate.getMonth() === sundayDate.getMonth() ?
+        `${mondayString.split(" ")[0]}-${sundayString.split(" ")[0]} ${sundayString.split(" ")[1]}` :
+        `${mondayString}-${sundayString}`;
 
     const workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
     if (!workloadSheet) {
@@ -509,8 +632,10 @@ function generateSalesReport(all = false) {
         return;
     }
 
-
     let developers = getDevelopers(workloadSheet, all);
+
+    // Get allocation data for all developers
+    let allAllocationData = getAllocationData(developers, isLastWeek);
 
     Logger.log(developers.length);
 
@@ -518,7 +643,7 @@ function generateSalesReport(all = false) {
 
     // Initialize report
     reportSheet.clearContents();
-    reportSheet.getRange('B3').setValue( reportName + ` for ${currentWeekMondayString} - ${currentWeekSundayString}`).setFontSize(20);
+    reportSheet.getRange('B3').setValue( reportName + ` for ${mondayString} - ${sundayString}`).setFontSize(20);
     reportSheet.getRange('M3').setValue('для сортировки выделите колонку и нажмите "Сортировать" или используйте дополнительные инструменты поиска в меню "Фильтры"').setFontSize(9);
 
     // Initialize the header row
@@ -563,12 +688,53 @@ function generateSalesReport(all = false) {
         column++;
     }
 
+    let columnForTable = column;
+
+    column = column+3;
+
+    let projects = getProjects(workloadSheet, null, true);
+    for (let project of projects) {
+        // Write the project name and PM initials in the next two columns
+        reportSheet.getRange(5, column)
+            .setValue(project.pmInitials + ' ' + project.projectName + ' plan')
+            .setVerticalAlignment("middle")
+            .setHorizontalAlignment("center")
+            .setTextRotation(90)
+            .setBackground("#cccccc")
+            .setFontSize(9);
+        reportSheet.setColumnWidth(column, 40);
+
+        // Leave a column for 'fact' data
+        reportSheet.getRange(5, column + 1)
+            .setValue(project.pmInitials + ' ' + project.projectName + ' fact')
+            .setVerticalAlignment("middle")
+            .setHorizontalAlignment("center")
+            .setTextRotation(90)
+            .setBackground("#cccccc")
+            .setFontSize(9);
+        reportSheet.setColumnWidth(column + 1, 40);
+
+        // Skip an empty column
+        reportSheet.getRange(5, column + 2).setBackground("#ffffff");
+        reportSheet.setColumnWidth(column + 2, 40);
+
+        // Increment the column counter to skip the 'fact' column
+        column += 3;
+    }
+
 
     // Initialize the data rows
     let row = 6;
     for (let developer of developers) {
         if(!developer.name) continue;
         let developerName = developer.name.split("(")[0].trim(); // Remove everything after the "(" and trim spaces
+
+        let allocationList = '';
+        let developerAllocationData = allAllocationData[developerName];
+        if (developerAllocationData && developerAllocationData.list) {
+            allocationList = developerAllocationData.list;
+        }
+
         let competenceData = getDeveloperCompetenceData(developerName)
         let englishLevel = competenceData['Английский'];
         // Here you need to calculate trainingAndSales and allocation for each developer
@@ -585,11 +751,10 @@ function generateSalesReport(all = false) {
         reportSheet.getRange(row, 2).setValue(developerName).setVerticalAlignment("middle").setWrap(true);
         reportSheet.getRange(row, 3).setValue(developer.location).setVerticalAlignment("middle").setWrap(true);
         reportSheet.getRange(row, 4).setValue(englishLevel).setVerticalAlignment("middle");
-
         reportSheet.getRange(row, 5).setValue(trainingHours).setVerticalAlignment("middle");
         reportSheet.getRange(row, 6).setValue(salesHours).setVerticalAlignment("middle");
         reportSheet.getRange(row, 7).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
-        reportSheet.getRange(row, 8).setValue(getAllocationData(developers, developerName)).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, 8).setValue(allocationList).setVerticalAlignment("middle").setWrap(true);
         let profileLink = competenceData['личное дело'] ?? '';
         if (profileLink) {
             reportSheet.getRange(row, 9).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
@@ -626,11 +791,80 @@ function generateSalesReport(all = false) {
             }
             column++;
         }
+
+        column = column+3;
+
+
+
+        for (let project of projects) {
+            let dataRow = [];
+
+            // Write the plan hours for the developer for this project
+            let planHours = Object.keys(project.developers).find(devName => devName.startsWith(developer.name));
+            planHours = project.developers[planHours] || '';
+            dataRow.push({
+                value: planHours,
+                verticalAlignment: "middle",
+                horizontalAlignment: "center",
+                background: "#cccccc",
+                fontSize: 8
+            });
+
+            // Write the fact hours for the developer for this project
+            let factHours = '';
+            if (developerAllocationData && developerAllocationData.projects) {
+                factHours = developerAllocationData.projects[project.projectName] || '';
+            }
+            dataRow.push({
+                value: factHours,
+                verticalAlignment: "middle",
+                horizontalAlignment: "center",
+                background: "#cccccc",
+                fontSize: 8
+            });
+
+            // Calculate the difference (plan - fact) and write in the next column
+            let formula = `=IF(AND(ISBLANK(R${row}C${column}), ISBLANK(R${row}C${column+1})), "", R${row}C${column+1}-R${row}C${column})`;
+            let difference = (factHours - planHours) || '';
+            let color = difference < 0 ? "red" : "green";
+            dataRow.push({
+                value: difference,
+                formula: formula,
+                verticalAlignment: "middle",
+                horizontalAlignment: "center",
+                background: "#ffffff",
+                fontSize: 8,
+                fontColor: color
+            });
+
+            // Write all the data to the row at once
+            let range = reportSheet.getRange(row, column, 1, 3);
+            range.setValues([dataRow.map(cell => cell.value)]);
+            range.setBackgrounds([dataRow.map(cell => cell.background)]);
+            range.setFontColors([dataRow.map(cell => cell.fontColor)]);
+            range.setFontSizes([dataRow.map(cell => cell.fontSize)]);
+            range.setVerticalAlignments([dataRow.map(cell => cell.verticalAlignment)]);
+            range.setHorizontalAlignments([dataRow.map(cell => cell.horizontalAlignment)]);
+
+            // Skip an empty column
+            reportSheet.getRange(5, column + 2).setBackground("#ffffff");
+            reportSheet.setColumnWidth(column + 2, 35);
+
+            // Add a border to the right of the empty column
+            reportSheet.getRange(5, column + 2, 115).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+
+            // Increment the column counter to skip the 'fact' column
+            column += 3;
+        }
+
+
+
         row++;
     }
 
     // Set the border
-    reportSheet.getRange(5, 2, row-5, column-2).setBorder(true, true, true, true, true, true);
+    reportSheet.getRange(5, 2, row-5, columnForTable-2).setBorder(true, true, true, true, true, true);
+
     insertSumFormulas(all);
     let lastColumn = reportSheet.getLastColumn();
 
@@ -638,18 +872,59 @@ function generateSalesReport(all = false) {
     let totalRow = reportSheet.getLastRow() + 1;
 
     reportSheet.getRange(4, 12).setValue('доступные ресурсы:');
-    // начиная со столбца L (13 в системе A1) и до последнего столбца
-    for(let i = 13; i <= lastColumn; i++) {
-        let columnLetter = getColumnLetter(i);
 
-        // используем отдельные строки для замены каждого экземпляра 'M6:M' и 'M6:A'
+    // Get the values in the fifth row
+    let fifthRowValues = reportSheet.getRange(5, 1, 1, reportSheet.getLastColumn()).getValues()[0];
+
+    // Initialize endColumn with the length of the fifthRowValues
+    let endColumn = fifthRowValues.length;
+
+    // Look for the first set of three empty cells in the fifth row
+    for (let i = 0; i < fifthRowValues.length - 2; i++) {
+        if (fifthRowValues[i] === '' && fifthRowValues[i + 1] === '' && fifthRowValues[i + 2] === '') {
+            endColumn = i;
+            break;
+        }
+    }
+
+    // Apply the first formula from startColumn to endColumn
+    for(let i = 13; i <= endColumn; i++) {
+        let columnLetter = getColumnLetter(i);
         let formula = `=SUMIF(M6:M${totalRow-1}, "<>", A6:A${totalRow-1})`;
         formula = formula.replace('M6:M', `${columnLetter}6:${columnLetter}`);
         formula = formula.replace('M6:A', `${columnLetter}6:A`);
-
-        // вставляем формулу в ячейку
         reportSheet.getRange(4, i).setFormula(formula);
     }
+
+    // The starting column for your formula for the remaining columns after the 3 empty ones
+    let remainingStartColumn = endColumn + 4;  // Adding 4 to account for the 3 empty columns and the column where the next set of data begins
+
+    // Apply the second formula from remainingStartColumn to the last column
+    let counter = 0;
+    for(let i = remainingStartColumn; i <= lastColumn; i++) {
+        let columnLetter = getColumnLetter(i);
+        let formula = `=SUM(M6:M${totalRow-1})`;
+        formula = formula.replace('M6:M', `${columnLetter}6:${columnLetter}`);
+
+        let cell = reportSheet.getRange(4, i);
+        cell.setFormula(formula).setFontSize(8).setHorizontalAlignment("center");
+
+        // Make sure the formula is evaluated
+        SpreadsheetApp.flush();
+
+        counter++;
+
+        // If it's the third cell, get its value and set the color accordingly
+        if (counter % 3 == 0) {
+            let cellValue = cell.getValue();
+            if (cellValue < 0) {
+                cell.setFontColor("red");
+            } else {
+                cell.setFontColor("green");
+            }
+        }
+    }
+
 }
 
 
@@ -743,9 +1018,11 @@ function getResumeLink(developerName) {
 }
 
 
-function getAllocationData(developers, developerName) {
+function getAllocationData(developers, isLastWeek = false) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const scrumSheet = ss.getSheetByName('Scrum files for current week');
+
+    let scrumSheetName = isLastWeek ? 'Scrum files for last week' : 'Scrum files for current week';
+    const scrumSheet = ss.getSheetByName(scrumSheetName);
 
     let allocationData = {};
     let scrumData;
@@ -765,37 +1042,37 @@ function getAllocationData(developers, developerName) {
         if (row[2] == "Testing") row[3] = "Testing";
         if (row[2] == "DevOps") row[3] = "DevOps";
         const [developerShort, date, type, project, hours] = row;
+        let roundedHours = Math.round(hours * 100) / 100;
         let developerFull = developers.find(developer => developer.name.startsWith(developerShort));
         if (developerFull && developerFull.name) {
             developerFull.name = developerFull.name.split("(")[0].trim();
             if (!allocationData[developerFull.name]) {
-                allocationData[developerFull.name] = {};
+                allocationData[developerFull.name] = {projects: {}, list: ''};
             }
-            if (!allocationData[developerFull.name][project]) {
-                allocationData[developerFull.name][project] = 0;
+            if (!allocationData[developerFull.name].projects[project]) {
+                allocationData[developerFull.name].projects[project] = 0;
             }
-            allocationData[developerFull.name][project] += hours;
-            Logger.log(developerFull.name + ' ' + project + ' ' + hours);
+            allocationData[developerFull.name].projects[project] += roundedHours;
+            Logger.log(developerFull.name + ' ' + project + ' ' + roundedHours);
         }
     });
 
-    let allocationList = [];
-    let totalDeveloperHours = 0;
-
-    developerName = developerName.split("(")[0].trim();
-
-    for (let project in allocationData[developerName]) {
-        let roundedHours = Math.round(allocationData[developerName][project] * 100) / 100;
-        totalDeveloperHours += roundedHours;
-        allocationList.push(project + ' (' + roundedHours + ')');
-        Logger.log(project + ' (' + roundedHours + ')');
+    for (let developer in allocationData) {
+        let allocationList = [];
+        let totalDeveloperHours = 0;
+        for (let project in allocationData[developer].projects) {
+            let roundedHours = Math.round(allocationData[developer].projects[project] * 100) / 100;
+            totalDeveloperHours += roundedHours;
+            allocationList.push(project + ' (' + roundedHours + ')');
+            Logger.log(project + ' (' + roundedHours + ')');
+        }
+        allocationList.unshift(Math.round(totalDeveloperHours * 100) / 100 + '');
+        allocationData[developer].list = allocationList.join(' | ');
     }
 
-    allocationList.unshift(Math.round(totalDeveloperHours * 100) / 100 + '');
-    allocationData[developerName] = allocationList.join(' | ');
-
-    return allocationData[developerName];
+    return allocationData;
 }
+
 
 
 function getDevelopers(workloadSheet, all) {
@@ -854,6 +1131,91 @@ function getDevelopers(workloadSheet, all) {
     return developers;
 }
 
+function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
+    if(!workloadSheet) {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
+        const workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
+
+        let weekMondayDate;
+        let weekSundayDate;
+
+        if (isLastWeek) {
+            weekMondayDate = getLastMonday();
+            weekSundayDate = getLastSunday();
+        } else {
+            weekMondayDate = getCurrentMonday();
+            weekSundayDate = getCurrentSunday();
+        }
+
+        const weekMondayString = Utilities.formatDate(weekMondayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+        const weekSundayString = Utilities.formatDate(weekSundayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+
+        let workloadSheetName = weekMondayDate.getMonth() === weekSundayDate.getMonth() ?
+            `${weekMondayString.split(" ")[0]}-${weekSundayString.split(" ")[0]} ${weekSundayString.split(" ")[1]}` :
+            `${weekMondayString}-${weekSundayString.split(" ")[0]}`;
+
+        workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);  // Remove the const keyword
+        if (!workloadSheet) {
+            SpreadsheetApp.getUi().alert(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
+            return;
+        }
+    }
+
+
+    let projects = [];
+    let developers = [];
+
+    let workloadData = workloadSheet.getDataRange().getValues();
+
+    // Retrieve developers from the 4th column
+    developers = workloadData.map(row => row[3]);
+
+    // Iterate through the columns of the workloadData
+    for (let j = 1; j < workloadData[0].length; j++) {
+        // Get the project's name, which is assumed to be in the 5th row
+        let projectName = workloadData[4][j];
+        console.log('Project Name:', projectName);
+
+        // Get the PM's initials, which are assumed to be in the 1st row
+        let pmInitials = workloadData[0][j];
+        let projectHours = 0;
+        console.log('PM Initials:', pmInitials);
+
+        // If PM initials are not exactly 2 characters long, skip this iteration
+        if (!pmInitials || pmInitials.length !== 2) {
+            continue;
+        }
+
+        // If a projectNameFilter is provided and doesn't match the current project, skip this iteration
+        if (projectNameFilter && projectName !== projectNameFilter) {
+            continue;
+        }
+
+        if (!projectName) {
+            continue;
+        }
+
+        // Create a new project object
+        let project = {pmInitials, projectName, projectHours: 0, developers: {}};
+
+        for (let i = 5; i < workloadData.length; i++) {
+            let hours = workloadData[i][j] || 0;
+            let developerName = developers[i];
+
+            if (hours > 0) {
+                project.developers[developerName] = hours;
+                project.projectHours += hours;
+            }
+        }
+
+        projects.push(project);
+    }
+
+    return projects;
+}
+
+
 function getCompetences(sheet, developers) {
     const COMPETENCES_START_COLUMN = 6; // 'F' column
     const COMPETENCES_END_COLUMN = 55; // 'BD' column
@@ -906,100 +1268,6 @@ function getCompetences(sheet, developers) {
 
     return { competenceDevelopers, competences: uniqueCompetences };
 }
-
-
-function getScrumFilesDataOld(lastWeekMondayDate, lastWeekSundayDate) {
-    const scrumFilesFolderId = "1AnMMx9rnnQE7r2KoodgYZP1eukycY0lJ";
-    const folder = DriveApp.getFolderById(scrumFilesFolderId);
-    const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-    Logger.log(lastWeekMondayDate + ' ' + lastWeekSundayDate);
-    // Create an array for month names between lastWeekMondayDate and lastWeekSundayDate
-    let monthsToProcess = [];
-    for (let date = new Date(lastWeekMondayDate); date <= lastWeekSundayDate; date.setMonth(date.getMonth() + 1)) {
-        monthsToProcess.push(monthNames[date.getMonth()]);
-    }
-
-    Logger.log(`Looking for files: ${monthsToProcess.join(', ')}`);
-
-    const filesIterator = folder.getFiles();
-    let scrumFiles = [];
-    while (filesIterator.hasNext()) {
-        const file = filesIterator.next();
-        Logger.log(`Checking file: ${file.getName()}`);
-        if (monthsToProcess.some(monthName => file.getName().includes(monthName))) {
-            scrumFiles.push(file);
-        }
-    }
-
-    if(scrumFiles.length == 0) {
-        Logger.log('No matching files found.');
-        return;
-    }
-
-    let data = {};
-    for (let i = 0; i < scrumFiles.length; i++) {
-        let file = scrumFiles[i];
-        Logger.log(`Processing file: ${file.getName()}`);
-        const fileId = file.getId();
-        const ss = SpreadsheetApp.openById(fileId);
-
-        // Iterate over all required months for each file
-        for (let monthName of monthsToProcess) {
-            const sheet = ss.getSheetByName('СкрамФайлы');
-
-            if (sheet) {
-                let columnNumber = 2;
-                while (true) {
-                    const columnLetter = getColumnLetter(columnNumber);
-                    const urlCell = sheet.getRange(`${columnLetter}4`);
-                    const url = urlCell.getValue();
-                    if (url === "") {
-                        Logger.log(`No more URLs found in column ${columnLetter}.`);
-                        break;
-                    }
-                    Logger.log(`Opening URL: ${url}`);
-                    const externalFile = SpreadsheetApp.openByUrl(url);
-                    const externalSheet = externalFile.getSheetByName(monthName);
-                    const lastRow = externalSheet.getLastRow();
-                    Logger.log(`Reading data from URL: ${url}, ${lastRow} rows found.`);
-
-                    const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
-
-                    if(monthSheetData.length == 0) {
-                        Logger.log('No monthSheetData found.');
-                        break;
-                    }
-
-                    monthSheetData.forEach(function(rowData) {
-                        if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
-                            const dateTime = new Date(rowData[0]);
-                            if (dateTime >= lastWeekMondayDate && dateTime <= lastWeekSundayDate) {
-                                const developer = externalFile.getName(); // Here we reference the filename of the external file
-                                const dateScrum = Utilities.formatDate(rowData[0], SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), "dd/MM/yyyy");
-                                const typeScrum = rowData[1];
-                                const projectScrum = rowData[2];
-                                const hoursScrum = rowData[4];
-                                if (!data[developer]) {
-                                    data[developer] = [];
-                                }
-                                data[developer].push({date: dateScrum, type: typeScrum, project: projectScrum, hours: hoursScrum});
-                                Logger.log(`${developer}, ${dateScrum}, ${typeScrum}, ${projectScrum}, ${hoursScrum}`);
-                            }
-                        }
-                    });
-
-                    columnNumber += 6;
-                }
-            } else {
-                Logger.log(`Sheet "${monthName}" not found in file "${file.getName()}"`);
-            }
-        }
-    }
-
-    Logger.log(JSON.stringify(data)); // Log the entire data object
-    return data;
-}
-
 
 function getScrumFilesData(fromDate, toDate) {
     const spreadsheetId = "133dteyNbEFrZgxxIDnI3CytGRGyk_t6U3uUpgNAN0nc";
@@ -1063,46 +1331,63 @@ function getColumnLetter(column) {
 }
 
 
+function getLastMonday() {
+    const currentMonday = getCurrentMonday();
+    const lastMonday = new Date(currentMonday.getFullYear(), currentMonday.getMonth(), currentMonday.getDate() - 7);
+    return lastMonday;
+}
+
+
+function getLastSunday() {
+    const currentSunday = getCurrentSunday();
+    const lastSunday = new Date(currentSunday.getFullYear(), currentSunday.getMonth(), currentSunday.getDate() - 7);
+    return lastSunday;
+}
+
+
 function getCurrentMonday() {
     const today = new Date();
     const day = today.getDay();
-    const diffToMonday = day === 0 ? 6 : day - 1; // If today is Sunday (0), we need to subtract 6 to get to the last Monday. Otherwise, subtract the number of days up to Monday
-    const currentMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - diffToMonday);
+    const diffToMonday = day === 0 ? -6 : 1 - day; // If today is Sunday (0), we need to subtract 6 to get to the last Monday. Otherwise, subtract the number of days up to Monday
+    const currentMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMonday);
     return currentMonday;
 }
-
 
 function getCurrentSunday() {
     const today = new Date();
     const day = today.getDay();
-    const diffToNextSunday = (7 - day) % 7; // Here we calculate the number of days remaining to next Sunday
+    const diffToNextSunday = day === 0 ? 0 : 7 - day; // Here we calculate the number of days remaining to next Sunday
     const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToNextSunday);
     return currentSunday;
 }
 
+function gatherDataInSheet(isLastWeek) {
+    // Get Monday and Sunday dates based on isLastWeek
+    const startDate = isLastWeek ? getLastMonday() : getCurrentMonday();
+    const endDate = isLastWeek ? getLastSunday() : getCurrentSunday();
 
-function gatherDataInCurrentSheet() {
-    const currentWeekMondayDate = getCurrentMonday();
-    const currentWeekSundayDate = getCurrentSunday();
-
-    const data = getScrumFilesData(currentWeekMondayDate, currentWeekSundayDate);
+    const data = getScrumFilesData(startDate, endDate);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let dataSheet = ss.getSheetByName("Scrum files for current week");
 
-    // Создаем новый лист, если он не существует
+    // Define the sheet name based on isLastWeek
+    let sheetName = isLastWeek ? "Scrum files for last week" : "Scrum files for current week";
+
+    let dataSheet = ss.getSheetByName(sheetName);
+
+    // Create new sheet if it doesn't exist
     if (!dataSheet) {
-        dataSheet = ss.insertSheet("Scrum files for current week");
+        dataSheet = ss.insertSheet(sheetName);
     } else {
-        // Очистить лист, если он уже существует
+        // Clear the sheet if it already exists
         dataSheet.clear();
     }
 
-    // Добавление даты и времени сбора данных
+    // Add date and time of data gathering
     const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
     dataSheet.getRange("A1").setValue(`Data gathered at ${currentTime} (Tbilisi, Georgia Timezone)`);
 
-    // Заголовки для нового листа смещены на строку вниз
+    // Headers for the new sheet moved one row down
     const headers = ["Developer", "Date", "Type", "Project", "Hours"];
     dataSheet.getRange(2, 1, 1, headers.length).setValues([headers]);
 
@@ -1117,6 +1402,9 @@ function gatherDataInCurrentSheet() {
     }
 }
 
+function gatherDataInSheetLastWeek() {
+    gatherDataInSheet(true)
+}
 
 function copyDataToCompetencesSheet() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1371,6 +1659,51 @@ function getCorrections(uniqueValues, data, colIndex, lowerCase = true, similari
     return corrections;
 }
 
+function gatherKeywords() {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ALL report');
+    var dataRange = sheet.getDataRange();
+    var values = dataRange.getValues();
+
+    // Получаем все комментарии из листа
+    var notes = dataRange.getNotes();
+
+    // Создаем лист "Keywords", если его еще нет
+    var keywordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Keywords');
+    if (!keywordSheet) {
+        keywordSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('Keywords');
+    }
+
+    var allWords = [];
+    values.forEach(function(row) {
+        row.forEach(function(cell) {
+            // Разбиваем ячейки на слова, заменяем переводы строки на пробелы,
+            // приводим к нижнему регистру, удаляем спецсимволы и числа
+            var words = cell.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
+            allWords = allWords.concat(words);
+        });
+    });
+
+    // Добавляем слова из комментариев
+    notes.forEach(function(noteRow) {
+        noteRow.forEach(function(note) {
+            // Разбиваем комментарии на слова, заменяем переводы строки на пробелы,
+            // приводим к нижнему регистру, удаляем спецсимволы и числа
+            var noteWords = note.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
+            allWords = allWords.concat(noteWords);
+        });
+    });
+
+    var uniqueWords = Array.from(new Set(allWords));
+    uniqueWords = uniqueWords.filter(word => word.length > 1);  // Оставляем только слова длиннее 1го символа
+    uniqueWords.sort();  // Сортируем слова
+
+    // Очищаем лист "Keywords" перед записью новых данных
+    keywordSheet.clear();
+
+    for (var i = 0; i < uniqueWords.length; i++) {
+        keywordSheet.getRange(i + 1, 1).setValue(uniqueWords[i]);
+    }
+}
 
 
 function levenshtein(a, b) {
@@ -1418,12 +1751,16 @@ function findClosestMatch(target, array) {
     return match;
 };
 
-function insertSumFormulas(all) {
+function insertSumFormulas(all, isLastWeek = false) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     let sheetName = "SALES report"
     if(all) {
         sheetName = 'ALL report';
+    }
+
+    if(isLastWeek) {
+        sheetName += ' last week';
     }
 
     sheet = ss.getSheetByName(sheetName);
