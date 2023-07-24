@@ -15,8 +15,8 @@ function onOpen() {
         .addItem('Обновить SALES report', 'generateSalesReportCheckOAuth')
         .addItem('Обновить ALL report', 'generateAllReportCheckOAuth')
         .addItem('Обновить ALL report last week', 'generateAllReportLastWeekCheckOAuth')
-        .addItem('Обновить "Scrum files for current week"', 'gatherDataInCurrentSheetCheckOAuth')
-        .addItem('Обновить "Scrum files for last week"', 'gatherDataInLastSheetCheckOAuth')
+        .addItem('Обновить "Scrum files for current week"', 'gatherDataInSheetCheckOAuth')
+        .addItem('Обновить "Scrum files for last week"', 'gatherDataInSheetLastWeekCheckOAuth')
         .addItem('Обновить "Competences"', 'copyDataToCompetencesSheetCheckOAuth')
         .addItem('Обновить "DeveloperStackData"', 'updateDeveloperStackDataCheckOAuth')
         .addToUi();
@@ -25,7 +25,7 @@ function onOpen() {
         .addItem('Только бенч', 'showOnlyBenchRows')
         .addItem('Выбор стеков', 'showStacksDialog')
         .addItem('Поиск', 'showSearchDialog')
-        .addItem('Выбор проектов', 'showProjectsDialog')
+        // .addItem('Выбор проектов', 'showProjectsDialog')
         .addItem('Сортировать по A-Z', 'sortDataAscending')
         .addItem('Сортировать по Z-A', 'sortDataDescending')
         .addToUi();
@@ -52,6 +52,41 @@ function showSearchDialog() {
     SpreadsheetApp.getUi().showModelessDialog(htmlOutput, 'Поиск');
 }
 
+
+function sortDataAscending() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        return;
+    }
+
+    var sortColumn = sheet.getActiveCell().getColumn();
+
+    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
+
+    dataRange.sort([{column: sortColumn, ascending: true}]);
+}
+
+function sortDataDescending() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var sheetName = sheet.getName();
+
+    // Проверяем, запущена ли функция на правильном листе
+    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        return;
+    }
+
+    var sortColumn = sheet.getActiveCell().getColumn();
+
+    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
+
+    dataRange.sort([{column: sortColumn, ascending: false}]);
+}
+
 function getActiveStacks() {
     var sheet = SpreadsheetApp.getActiveSheet();
     var sheetName = sheet.getName();
@@ -65,10 +100,13 @@ function getActiveStacks() {
     var headerRow = sheet.getRange("5:5");
     var cells = headerRow.getValues()[0];  // Изменено здесь
     var activeStacks = [];
-    for (var i = 12; i < cells.length; i++) {
+    for (var i = 10; i < cells.length; i++) {
         var cell = sheet.getRange(5, i+1);   // Получаем ячейку для проверки ее свойств
         if (cell.getBackground() === '#000000') {
             activeStacks.push(cells[i]);
+        }
+        if (cell.getValue() === 'Plan') {
+            break;
         }
     }
     return activeStacks;
@@ -88,8 +126,8 @@ function getStacks() {
     var values = stackRow.getValues();
 
     let stacks = [];
-    for (let stack of values[0].slice(12)) {
-        if (stack === '') {
+    for (let stack of values[0].slice(10)) {
+        if (stack === 'Plan') {
             break;
         }
         stacks.push(stack);
@@ -100,34 +138,40 @@ function getStacks() {
 
 
 function rgbToHex(rgb) {
-    if (!rgb) return '#ffffff';
-    if (rgb.indexOf('#') === 0) return rgb;
-    const match = rgb.match(/(\d+)/g);
+    let match = rgb.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
     if (!match) return '#ffffff';
-    return '#' + ((1 << 24) + (parseInt(match[0]) << 16) + (parseInt(match[1]) << 8) + parseInt(match[2])).toString(16).slice(1);
+    return "#" + ((1 << 24) + (+match[1] << 16) + (+match[2] << 8) + +match[3]).toString(16).slice(1).toUpperCase();
 }
 
 function toggleStack(stackName) {
     var sheet = SpreadsheetApp.getActiveSheet();
-    var lastColumn = sheet.getLastColumn();
     var headerRow = sheet.getRange("5:5");
     var values = headerRow.getValues();
-    var stackColumn = values[0].indexOf(stackName) + 12; // Учет того, что стеки начинаются с колонки M (индекс 12), +1 потому что indexOf возвращает индекс на единицу меньше
+    var stackColumn = values[0].indexOf(stackName)+1;
+    var totalPlanColumn = values[0].indexOf('Plan');
 
-    if (stackColumn >= 12 && stackColumn <= lastColumn) { // Если стек найден в заголовке и не превышает последний столбец с данными
-        var cell = sheet.getRange(5, stackColumn);
-        var fontColor = rgbToHex(cell.getFontColor());
+    if (stackColumn >= 10 && stackColumn < totalPlanColumn) {
+        var cell = headerRow.getCell(1, stackColumn);
+        var fontColor = cell.getFontColorObject().asRgbColor().asHexString();
 
-        if (fontColor === '#ffffff') { // Если ячейка уже активна
+        if (fontColor == '#ffffff') { // Если ячейка уже активна
             cell.setBackground('#cccccc').setFontColor('black');
+
+            // Получить все активные стеки
+            let activeStacks = getActiveStacks();
+
+            // Вызовите sortData с активными стеками
+            sortData(activeStacks);
         } else { // Если ячейка не активна
             cell.setBackground('#000000').setFontColor('white');
+            hideEmptyRows(sheet, stackColumn); // Скрыть строки без значений для этого стека
         }
     } else {
         Logger.log("Не удалось найти стек " + stackName);
     }
-}
 
+    return true;
+}
 
 function sortData(activeStacks) {
     var sheet = SpreadsheetApp.getActiveSheet();
@@ -136,30 +180,38 @@ function sortData(activeStacks) {
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
         Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
-        return;
+        return false;
     }
+
+    // Показываем все строки
     showAllRows();
 
-    var headerRow = sheet.getRange("5:5"); // Это строка с именами стеков
-    var values = headerRow.getValues();
+    // Для каждого активного стека вызываем функцию toggleStack
+    activeStacks.forEach(stackName => {
+        toggleStack(stackName);
+    });
 
-    var lastColumn = sheet.getLastColumn();
-    for (var i = 12; i < lastColumn; i++) { // Начинаем с колонки M (индекс 12 в массиве)
-        var cell = headerRow.getCell(1, i + 1);
-        if (activeStacks.includes(values[0][i])) {
-            // Если стек активен, делаем ячейку темной и текст белым
-            cell.setBackground('black').setFontColor('white');
-            // dataRange.sort([{column: i + 1, ascending: true}]); // Добавить сортировку для активных стеков
-            hideEmptyRows(sheet, i + 1); // Скрыть строки без значений для этого стека
-        } else {
-            // Если стек не активен, делаем ячейку светло-зеленой и текст черным
-            cell.setBackground('#cccccc').setFontColor('black');
-        }
-    }
     // Сбрасываем поиск
     sheet.getRange("H3").clearContent();
     sheet.getRange("I3").clearContent();
 
+    return true;
+}
+
+
+function hideRowsForActiveStacks() {
+    var activeStacks = getActiveStacks(); // Вставьте сюда код для получения активных стеков
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var lastColumn = sheet.getLastColumn();
+    var headerRow = sheet.getRange("5:5");
+    var values = headerRow.getValues();
+
+    activeStacks.forEach(function(stackName) {
+        var stackColumn = values[0].indexOf(stackName)+1;
+        if (stackColumn >= 10 && stackColumn <= lastColumn) {
+            hideEmptyRows(sheet, stackColumn);
+        }
+    });
 }
 
 function filterByProject(projectName) {
@@ -197,41 +249,6 @@ function filterByProject(projectName) {
     sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
     sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
 }
-
-function sortDataAscending() {
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var sheetName = sheet.getName();
-
-    // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
-        return;
-    }
-
-    var sortColumn = sheet.getActiveCell().getColumn();
-
-    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
-
-    dataRange.sort([{column: sortColumn, ascending: true}]);
-}
-
-function sortDataDescending() {
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var sheetName = sheet.getName();
-
-    // Проверяем, запущена ли функция на правильном листе
-    if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
-        return;
-    }
-
-    var sortColumn = sheet.getActiveCell().getColumn();
-
-    var dataRange = sheet.getRange(6, 1, sheet.getLastRow() - 5, sheet.getLastColumn());
-
-    dataRange.sort([{column: sortColumn, ascending: false}]);
-}
-
 
 function hideEmptyRows(sheet, sortColumn) {
     var sheetName = sheet.getName();
@@ -337,8 +354,8 @@ function showOnlyBenchRows() {
     sheet.showRows(1, data.length); // Обязательно показываем все строки перед скрытием
 
     for (var i = 5; i < data.length; i++) {
-        // Проверяем колонки D (индекс 3 соответственно)
-        if (data[i][3] < 10) {
+        // Проверяем колонки E (индекс 4 соответственно)
+        if (data[i][4] < 10) {
             sheet.hideRows(i + 1);
         }
     }
@@ -365,24 +382,33 @@ function showAllRows() {
 
     // Reset the background color and text color of stack headers
     var headerRow = sheet.getRange("5:5");
+    var headerValues = headerRow.getValues()[0];
     var lastColumn = sheet.getLastColumn();
-    for (var i = 12; i < lastColumn; i++) {
-        var cell = headerRow.getCell(1, i + 1);
-        // Stop coloring when the cell is empty
-        if (cell.getValue() === "") {
-            break;
-        }
-        cell.setBackground('#cccccc').setFontColor('black');
+    var backgrounds = headerRow.getBackgrounds()[0];
+    var fontColors = headerValues.map((_, index) => {
+        return headerRow.getCell(1, index + 1).getFontColorObject().asRgbColor().asHexString();
+    });
+
+    var totalPlanColumn = headerValues.indexOf("Plan");
+    if (totalPlanColumn == -1) {
+        totalPlanColumn = lastColumn;  // Если "Plan" не найден, используем последнюю колонку
     }
 
+    for (var i = 10; i < totalPlanColumn; i++) {
+        backgrounds[i] = '#cccccc';
+        fontColors[i] = 'black';
+    }
+
+    // Заполняем все ячейки значениями по умолчанию
+    headerRow.setBackgrounds([backgrounds]);
+    headerRow.setFontColors([fontColors]);
+
     // Сбрасываем поиск
-    sheet.getRange("H3").clearContent();
-    sheet.getRange("I3").clearContent();
-    sheet.getRange("H3").setValue("").setBackground('white').setFontColor('black');
-    sheet.getRange("I3").setValue("").setBackground('white').setFontColor('black');
-    sheet.getRange("J3").setValue("").setBackground('white').setFontColor('black');
+    sheet.getRange("H3:J3").clearContent().setBackground('white').setFontColor('black');
+
     return true;
 }
+
 
 
 
@@ -526,7 +552,7 @@ function generateSalesReportCheckOAuth() {
 
     if (hasToken) {
         // Токен присутствует, выполняем функцию generateSalesReport()
-        generateSalesReport(false);
+        generateSalesReport();
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
         var response = Browser.msgBox(
@@ -546,13 +572,38 @@ function generateSalesReportCheckOAuth() {
 }
 
 
-function gatherDataInCurrentSheetCheckOAuth() {
+function gatherDataInSheetCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
         // Токен присутствует, выполняем функцию updateWeekPlan()
-        gatherDataInCurrentSheet();
+        gatherDataInSheet();
+    } else {
+        // Токен отсутствует, отображаем диалоговое окно пользователю
+        var response = Browser.msgBox(
+            "OAuth Token Required",
+            "Please obtain an OAuth token by clicking the 'OK' button.",
+            Browser.Buttons.OK_CANCEL
+        );
+
+        if (response === Browser.Buttons.OK) {
+            // Пользователь нажал OK, выполняем действия для получения токена
+            saveOAuthToken();
+        } else {
+            // Пользователь нажал Cancel, не выполняем функцию parseData()
+            return;
+        }
+    }
+}
+
+function gatherDataInSheetLastWeekCheckOAuth() {
+    // Проверка наличия OAuth-токена
+    var hasToken = checkOAuthToken();
+
+    if (hasToken) {
+        // Токен присутствует, выполняем функцию updateWeekPlan()
+        gatherDataInSheet(true);
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
         var response = Browser.msgBox(
@@ -592,7 +643,15 @@ function generateSalesReport(all = false, isLastWeek = false) {
         reportName += ' last week';
     }
 
+    // Проверяем, запущена ли функция на правильном листе
+    if (reportName !== 'ALL report' && reportName !== 'SALES report' && reportName !== 'ALL report last week') {
+        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        return;
+    }
+
     reportSheet = ss.getSheetByName(reportName);
+
+    showAllRows();
 
     var range = reportSheet.getDataRange();
     var notes = range.getNotes();
@@ -634,8 +693,54 @@ function generateSalesReport(all = false, isLastWeek = false) {
 
     let developers = getDevelopers(workloadSheet, all);
 
-    // Get allocation data for all developers
+    // Get data for all developers
     let allAllocationData = getAllocationData(developers, isLastWeek);
+
+    // Шаг 1. Получите данные проекта "vacation".
+    let vacationData = developers.map(developer => {
+        return [developer.name, null, null, "vacation", developer.vacationHours || 0];
+    }).filter(row => row[4] > 0); // Фильтруйте разработчиков с нулевыми часами отпуска
+
+    // Шаг 2. Добавьте данные проекта "vacation" в allAllocationData.
+    vacationData.forEach(([developerName, , , project, hours]) => {
+        // Если нет данных для этого разработчика, создайте их
+        if (!allAllocationData[developerName]) {
+            allAllocationData[developerName] = {projects: {}, list: ''};
+        }
+
+        // Добавьте часы отпуска к проекту "vacation"
+        if (!allAllocationData[developerName].projects[project]) {
+            allAllocationData[developerName].projects[project] = 0;
+        }
+        allAllocationData[developerName].projects[project] += hours;
+    });
+
+
+    var getStackData = (function() {
+        var allDevelopersStackData = null;  // Закрытая переменная
+
+        return function(developerName) {
+            if (!allDevelopersStackData) {
+                allDevelopersStackData = getAllDevelopersStackDataFromSheet();  // Получить данные только при первом вызове
+            }
+
+            // Возвращаемые данные для указанного разработчика или undefined, если такого разработчика нет
+            return allDevelopersStackData[developerName] || {};
+        }
+    })();
+
+    var getCompetenceData = (function() {
+        var developerCompetenceData = null;  // Закрытая переменная
+
+        return function(developerName) {
+            if (!developerCompetenceData) {
+                developerCompetenceData = getAllDevelopersCompetenceData();  // Получить данные только при первом вызове
+            }
+
+            // Возвращаемые данные для указанного разработчика или undefined, если такого разработчика нет
+            return developerCompetenceData[developerName] || {};
+        }
+    })();
 
     Logger.log(developers.length);
 
@@ -644,28 +749,36 @@ function generateSalesReport(all = false, isLastWeek = false) {
     // Initialize report
     reportSheet.clearContents();
     reportSheet.getRange('B3').setValue( reportName + ` for ${mondayString} - ${sundayString}`).setFontSize(20);
-    reportSheet.getRange('M3').setValue('для сортировки выделите колонку и нажмите "Сортировать" или используйте дополнительные инструменты поиска в меню "Фильтры"').setFontSize(9);
+    reportSheet.getRange('K3').setValue('для сортировки выделите колонку и нажмите "Сортировать" или используйте дополнительные инструменты поиска в меню "Фильтры"').setFontSize(9);
 
     // Initialize the header row
     reportSheet.getRange('B5').setValue('Developer').setVerticalAlignment("middle");
+    reportSheet.setColumnWidth(2, 200);
     reportSheet.getRange('C5').setValue('Location').setVerticalAlignment("middle");
+    reportSheet.setColumnWidth(3, 200);
     reportSheet.getRange('D5').setValue('English').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(4, 30);
     reportSheet.getRange('E5').setValue('Training').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(5, 30);
     reportSheet.getRange('F5').setValue('Sales').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('G5').setValue('Plan').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('H5').setValue('Fact').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('I5').setValue('Profile Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('J5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('K5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
-    reportSheet.getRange('L5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    reportSheet.setColumnWidth(6, 30);
+    reportSheet.getRange('G5').setValue('Profile Link').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(7, 40);
+    reportSheet.getRange('H5').setValue('Stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(8, 150);
+    reportSheet.getRange('I5').setValue('Extra stack').setTextRotation(90).setBackground("#ffffff").setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(9, 150);
+    reportSheet.getRange('J5').setValue('Обучаемость\nСтрессоустойчивость\nРабота в команде\nРабота с клиентом\nНавыки самопрезентации\nГибкость мышления').setTextRotation(90).setBackground("#ffffff").setHorizontalAlignment("center").setVerticalAlignment("middle");
+    reportSheet.setColumnWidth(10, 150);
 
-    let column = 13;
+
+    let column = 11;
     let allStacks = {};
 
     for (let developer of developers) {
         if(!developer.name) continue;
         let developerName = developer.name.split("(")[0].trim();
-        let stackData = getDeveloperStackDataFromSheet(developerName);
+        let stackData = getStackData(developerName);
 
         for (let stack in stackData) {
             if(stack != '') {
@@ -688,38 +801,77 @@ function generateSalesReport(all = false, isLastWeek = false) {
         column++;
     }
 
+    reportSheet.getRange(5,column).setValue('Plan').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(column, 150);
+    column++;
+    reportSheet.getRange(5,column).setValue('Fact').setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+    reportSheet.setColumnWidth(column, 150);
+    column++;
+
     let columnForTable = column;
+    let projects = getProjects(workloadSheet, null, true);
+
+    // Write TOTAL in the next two columns
+    reportSheet.getRange(5, column)
+        .setValue('TOTAL plan')
+        .setVerticalAlignment("middle")
+        .setHorizontalAlignment("center")
+        .setTextRotation(90)
+        .setBackground("#ffffff")
+        .setFontSize(9);
+    reportSheet.setColumnWidth(column, 40);
+
+    // Leave a column for 'fact' data
+    reportSheet.getRange(5, column + 1)
+        .setValue('TOTAL fact')
+        .setVerticalAlignment("middle")
+        .setHorizontalAlignment("center")
+        .setTextRotation(90)
+        .setBackground("#ffffff")
+        .setFontSize(9);
+    reportSheet.setColumnWidth(column + 1, 40);
+    reportSheet.setColumnWidth(column + 2, 40);
+
+    // Add a border to the right of the empty column
+    reportSheet.getRange(5, column + 2, 120).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+
 
     column = column+3;
 
-    let projects = getProjects(workloadSheet, null, true);
-    for (let project of projects) {
-        // Write the project name and PM initials in the next two columns
-        reportSheet.getRange(5, column)
-            .setValue(project.pmInitials + ' ' + project.projectName + ' plan')
-            .setVerticalAlignment("middle")
-            .setHorizontalAlignment("center")
-            .setTextRotation(90)
-            .setBackground("#cccccc")
-            .setFontSize(9);
-        reportSheet.setColumnWidth(column, 40);
+    if(all) {
 
-        // Leave a column for 'fact' data
-        reportSheet.getRange(5, column + 1)
-            .setValue(project.pmInitials + ' ' + project.projectName + ' fact')
-            .setVerticalAlignment("middle")
-            .setHorizontalAlignment("center")
-            .setTextRotation(90)
-            .setBackground("#cccccc")
-            .setFontSize(9);
-        reportSheet.setColumnWidth(column + 1, 40);
 
-        // Skip an empty column
-        reportSheet.getRange(5, column + 2).setBackground("#ffffff");
-        reportSheet.setColumnWidth(column + 2, 40);
+        for (let project of projects) {
+            // Write the project name and PM initials in the next two columns
+            reportSheet.getRange(5, column)
+                .setValue(project.pmInitials + ' ' + project.projectName + ' plan')
+                .setVerticalAlignment("middle")
+                .setHorizontalAlignment("center")
+                .setTextRotation(90)
+                .setBackground("#cccccc")
+                .setFontSize(9);
+            reportSheet.setColumnWidth(column, 40);
 
-        // Increment the column counter to skip the 'fact' column
-        column += 3;
+            // Leave a column for 'fact' data
+            reportSheet.getRange(5, column + 1)
+                .setValue(project.pmInitials + ' ' + project.projectName + ' fact')
+                .setVerticalAlignment("middle")
+                .setHorizontalAlignment("center")
+                .setTextRotation(90)
+                .setBackground("#cccccc")
+                .setFontSize(9);
+            reportSheet.setColumnWidth(column + 1, 40);
+
+            // Skip an empty column
+            reportSheet.getRange(5, column + 2).setBackground("#ffffff");
+            reportSheet.setColumnWidth(column + 2, 40);
+
+            // Add a border to the right of the empty column
+            reportSheet.getRange(5, column + 2, 120).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+
+            // Increment the column counter to skip the 'fact' column
+            column += 3;
+        }
     }
 
 
@@ -735,13 +887,13 @@ function generateSalesReport(all = false, isLastWeek = false) {
             allocationList = developerAllocationData.list;
         }
 
-        let competenceData = getDeveloperCompetenceData(developerName)
-        let englishLevel = competenceData['Английский'];
+        //let competenceData = developerCompetenceData(developerName)
+        let englishLevel = getCompetenceData(developerName)['Английский'];
         // Here you need to calculate trainingAndSales and allocation for each developer
         let trainingHours = developer.projects['Training'] || 0;
         let salesHours = developer.projects['SALES'] || 0;
 
-        let stackData = getDeveloperStackDataFromSheet(developerName);
+        let stackData = getStackData(developerName);
 
         if (trainingHours >= 10) {
             // Выделить строку зеленым цветом
@@ -753,26 +905,23 @@ function generateSalesReport(all = false, isLastWeek = false) {
         reportSheet.getRange(row, 4).setValue(englishLevel).setVerticalAlignment("middle");
         reportSheet.getRange(row, 5).setValue(trainingHours).setVerticalAlignment("middle");
         reportSheet.getRange(row, 6).setValue(salesHours).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 7).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
-        reportSheet.getRange(row, 8).setValue(allocationList).setVerticalAlignment("middle").setWrap(true);
-        let profileLink = competenceData['личное дело'] ?? '';
+        let profileLink = getCompetenceData(developerName)['личное дело'] ?? '';
         if (profileLink) {
-            reportSheet.getRange(row, 9).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
+            reportSheet.getRange(row, 7).setFormula(`=HYPERLINK("${profileLink}", "Link")`).setVerticalAlignment("middle");
         }
-        let competenceText = competenceData['Инструменты\nБиблиотеки\nСитстемы'] ?? '';
-        reportSheet.getRange(row, 10).setValue(competenceData['Основной стек'] ?? '').setVerticalAlignment("middle");
-        reportSheet.getRange(row, 11).setValue(competenceData['Дополнительный стек'] ?? '').setNote(competenceText).setVerticalAlignment("middle");
-        reportSheet.getRange(row, 12).setValue(
-            (competenceData['Обучаемость'] ?? '') + '  ' +
-            (competenceData['Стрессоустойчивость'] ?? '') + '  ' +
-            (competenceData['Работа в команде'] ?? '') + '  ' +
-            (competenceData['Работа с клиентом (командой клиента)'] ?? '') + '  ' +
-            (competenceData['Навыки самопрезентации'] ?? '') + '  ' +
-            (competenceData['Гибкость мышления'] ?? '')
+        let competenceText = getCompetenceData(developerName)['Инструменты\nБиблиотеки\nСитстемы'] ?? '';
+        reportSheet.getRange(row, 8).setValue(getCompetenceData(developerName)['Основной стек'] ?? '').setVerticalAlignment("middle");
+        reportSheet.getRange(row, 9).setValue(getCompetenceData(developerName)['Дополнительный стек'] ?? '').setNote(competenceText).setVerticalAlignment("middle");
+        reportSheet.getRange(row, 10).setValue(
+            (getCompetenceData(developerName)['Обучаемость'] ?? '') + '  ' +
+            (getCompetenceData(developerName)['Стрессоустойчивость'] ?? '') + '  ' +
+            (getCompetenceData(developerName)['Работа в команде'] ?? '') + '  ' +
+            (getCompetenceData(developerName)['Работа с клиентом (командой клиента)'] ?? '') + '  ' +
+            (getCompetenceData(developerName)['Навыки самопрезентации'] ?? '') + '  ' +
+            (getCompetenceData(developerName)['Гибкость мышления'] ?? '')
         ).setVerticalAlignment("middle").setHorizontalAlignment("center");
 
-
-        let column = 13;
+        let column = 11;
         n = 0;
 
         for (let stack of sortedStacks) {
@@ -792,9 +941,18 @@ function generateSalesReport(all = false, isLastWeek = false) {
             column++;
         }
 
-        column = column+3;
+        reportSheet.getRange(row, column).setValue(developer.projectHours).setVerticalAlignment("middle").setWrap(true);
+        reportSheet.getRange(row, column+1).setValue(allocationList).setVerticalAlignment("middle").setWrap(true);
+
+        let columnPlanHours = column+2;
+        let columnFactHours = column+3;
+        let columnDiffHours = column+4;
+
+        column = column+5;
 
 
+        let planHoursTotal = 0;
+        let factHoursTotal = 0;
 
         for (let project of projects) {
             let dataRow = [];
@@ -802,62 +960,78 @@ function generateSalesReport(all = false, isLastWeek = false) {
             // Write the plan hours for the developer for this project
             let planHours = Object.keys(project.developers).find(devName => devName.startsWith(developer.name));
             planHours = project.developers[planHours] || '';
-            dataRow.push({
-                value: planHours,
-                verticalAlignment: "middle",
-                horizontalAlignment: "center",
-                background: "#cccccc",
-                fontSize: 8
-            });
+
 
             // Write the fact hours for the developer for this project
             let factHours = '';
             if (developerAllocationData && developerAllocationData.projects) {
                 factHours = developerAllocationData.projects[project.projectName] || '';
             }
-            dataRow.push({
-                value: factHours,
-                verticalAlignment: "middle",
-                horizontalAlignment: "center",
-                background: "#cccccc",
-                fontSize: 8
-            });
 
-            // Calculate the difference (plan - fact) and write in the next column
-            let formula = `=IF(AND(ISBLANK(R${row}C${column}), ISBLANK(R${row}C${column+1})), "", R${row}C${column+1}-R${row}C${column})`;
-            let difference = (factHours - planHours) || '';
-            let color = difference < 0 ? "red" : "green";
-            dataRow.push({
-                value: difference,
-                formula: formula,
-                verticalAlignment: "middle",
-                horizontalAlignment: "center",
-                background: "#ffffff",
-                fontSize: 8,
-                fontColor: color
-            });
+            if(all) {
+                dataRow.push({
+                    value: planHours,
+                    verticalAlignment: "middle",
+                    horizontalAlignment: "center",
+                    background: "#cccccc",
+                    fontSize: 8
+                });
 
-            // Write all the data to the row at once
-            let range = reportSheet.getRange(row, column, 1, 3);
-            range.setValues([dataRow.map(cell => cell.value)]);
-            range.setBackgrounds([dataRow.map(cell => cell.background)]);
-            range.setFontColors([dataRow.map(cell => cell.fontColor)]);
-            range.setFontSizes([dataRow.map(cell => cell.fontSize)]);
-            range.setVerticalAlignments([dataRow.map(cell => cell.verticalAlignment)]);
-            range.setHorizontalAlignments([dataRow.map(cell => cell.horizontalAlignment)]);
+                dataRow.push({
+                    value: factHours,
+                    verticalAlignment: "middle",
+                    horizontalAlignment: "center",
+                    background: "#cccccc",
+                    fontSize: 8
+                });
 
-            // Skip an empty column
-            reportSheet.getRange(5, column + 2).setBackground("#ffffff");
-            reportSheet.setColumnWidth(column + 2, 35);
+                // Calculate the difference (plan - fact) and write in the next column
+                let formula = `=IF(AND(ISBLANK(R${row}C${column}), ISBLANK(R${row}C${column+1})), "", R${row}C${column+1}-R${row}C${column})`;
+                let difference = (factHours - planHours) || '';
+                let color = difference < 0 ? "red" : "green";
+                dataRow.push({
+                    value: difference,
+                    formula: formula,
+                    verticalAlignment: "middle",
+                    horizontalAlignment: "center",
+                    background: "#ffffff",
+                    fontSize: 8,
+                    fontColor: color
+                });
 
-            // Add a border to the right of the empty column
-            reportSheet.getRange(5, column + 2, 115).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+                // Write all the data to the row at once
+                let range = reportSheet.getRange(row, column, 1, 3);
+                range.setValues([dataRow.map(cell => cell.value)]);
+                range.setBackgrounds([dataRow.map(cell => cell.background)]);
+                range.setFontColors([dataRow.map(cell => cell.fontColor)]);
+                range.setFontSizes([dataRow.map(cell => cell.fontSize)]);
+                range.setVerticalAlignments([dataRow.map(cell => cell.verticalAlignment)]);
+                range.setHorizontalAlignments([dataRow.map(cell => cell.horizontalAlignment)]);
 
-            // Increment the column counter to skip the 'fact' column
-            column += 3;
+                // Skip an empty column
+                reportSheet.getRange(5, column + 2).setBackground("#ffffff");
+                reportSheet.setColumnWidth(column + 2, 35);
+
+                // Increment the column counter to skip the 'fact' column
+                column += 3;
+            }
+
+            planHours = Math.round(planHours * 100) / 100;
+            factHours = Math.round(factHours * 100) / 100;
+
+            planHoursTotal += planHours;
+            factHoursTotal += factHours;
+
         }
 
+        let diffHoursTotal = factHoursTotal-planHoursTotal;
 
+        let diffFontColor = "green"
+        if(diffHoursTotal < 0) diffFontColor = "red";
+
+        reportSheet.getRange(row, columnPlanHours).setValue(planHoursTotal).setVerticalAlignment("middle").setHorizontalAlignment("center");
+        reportSheet.getRange(row, columnFactHours).setValue(factHoursTotal).setVerticalAlignment("middle").setHorizontalAlignment("center");
+        reportSheet.getRange(row, columnDiffHours).setValue(diffHoursTotal).setVerticalAlignment("middle").setHorizontalAlignment("center").setFontColor(diffFontColor);
 
         row++;
     }
@@ -865,13 +1039,13 @@ function generateSalesReport(all = false, isLastWeek = false) {
     // Set the border
     reportSheet.getRange(5, 2, row-5, columnForTable-2).setBorder(true, true, true, true, true, true);
 
-    insertSumFormulas(all);
+    insertSumFormulas(all,isLastWeek);
     let lastColumn = reportSheet.getLastColumn();
 
     // определите номер строки, куда нужно вставить итоговые значения (после последней строки с данными)
     let totalRow = reportSheet.getLastRow() + 1;
 
-    reportSheet.getRange(4, 12).setValue('доступные ресурсы:');
+    reportSheet.getRange(4, 10).setValue('доступные ресурсы:');
 
     // Get the values in the fifth row
     let fifthRowValues = reportSheet.getRange(5, 1, 1, reportSheet.getLastColumn()).getValues()[0];
@@ -881,49 +1055,56 @@ function generateSalesReport(all = false, isLastWeek = false) {
 
     // Look for the first set of three empty cells in the fifth row
     for (let i = 0; i < fifthRowValues.length - 2; i++) {
-        if (fifthRowValues[i] === '' && fifthRowValues[i + 1] === '' && fifthRowValues[i + 2] === '') {
+        if (fifthRowValues[i] === 'Plan') {
             endColumn = i;
             break;
         }
     }
 
     // Apply the first formula from startColumn to endColumn
-    for(let i = 13; i <= endColumn; i++) {
+    for(let i = 11; i <= endColumn; i++) {
         let columnLetter = getColumnLetter(i);
-        let formula = `=SUMIF(M6:M${totalRow-1}, "<>", A6:A${totalRow-1})`;
-        formula = formula.replace('M6:M', `${columnLetter}6:${columnLetter}`);
-        formula = formula.replace('M6:A', `${columnLetter}6:A`);
+        let formula = `=SUMIF(XXX6:XXX${totalRow-1}, "<>", A6:A${totalRow-1})`;
+        formula = formula.replace('XXX6:XXX', `${columnLetter}6:${columnLetter}`);
+        formula = formula.replace('XXX6:A', `${columnLetter}6:A`);
         reportSheet.getRange(4, i).setFormula(formula);
     }
 
-    // The starting column for your formula for the remaining columns after the 3 empty ones
-    let remainingStartColumn = endColumn + 4;  // Adding 4 to account for the 3 empty columns and the column where the next set of data begins
 
-    // Apply the second formula from remainingStartColumn to the last column
-    let counter = 0;
-    for(let i = remainingStartColumn; i <= lastColumn; i++) {
-        let columnLetter = getColumnLetter(i);
-        let formula = `=SUM(M6:M${totalRow-1})`;
-        formula = formula.replace('M6:M', `${columnLetter}6:${columnLetter}`);
+    if(all) {
+        // The starting column for your formula for the remaining columns after the 3 empty ones
+        let remainingStartColumn = endColumn + 3;  // Adding 3 to account for fact and plan columns and the column where the next set of data begins
 
-        let cell = reportSheet.getRange(4, i);
-        cell.setFormula(formula).setFontSize(8).setHorizontalAlignment("center");
+        // Apply the second formula from remainingStartColumn to the last column
+        let counter = 0;
+        for(let i = remainingStartColumn; i <= lastColumn; i++) {
+            let columnLetter = getColumnLetter(i);
+            let formula = `=SUM(K6:K${totalRow-1})`;
+            formula = formula.replace('K6:K', `${columnLetter}6:${columnLetter}`);
 
-        // Make sure the formula is evaluated
-        SpreadsheetApp.flush();
+            let cell = reportSheet.getRange(4, i);
+            cell.setFormula(formula).setFontSize(8).setHorizontalAlignment("center");
 
-        counter++;
+            // Make sure the formula is evaluated
+            SpreadsheetApp.flush();
 
-        // If it's the third cell, get its value and set the color accordingly
-        if (counter % 3 == 0) {
-            let cellValue = cell.getValue();
-            if (cellValue < 0) {
-                cell.setFontColor("red");
-            } else {
-                cell.setFontColor("green");
+            counter++;
+
+            // If it's the third cell, get its value and set the color accordingly
+            if (counter % 3 == 0) {
+                let cellValue = cell.getValue();
+                if (cellValue < 0) {
+                    cell.setFontColor("red");
+                } else {
+                    cell.setFontColor("green");
+                }
             }
         }
     }
+
+    // Add date and time of data gathering
+    const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
+    reportSheet.getRange("B4").setValue(`Generated at ${currentTime} (Tbilisi, Georgia Timezone)`);
 
 }
 
@@ -991,7 +1172,38 @@ function getDeveloperStackDataFromSheet(developerNameRussian) {
     return stackData;
 }
 
+function getAllDevelopersStackDataFromSheet() {
+    let namesSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Developers english vs russian names');
+    let namesData = namesSheet.getRange(2, 1, namesSheet.getLastRow(), 2).getValues();
 
+    let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DeveloperStackData');
+    let data = sheet.getRange(2, 1, sheet.getLastRow(), 6).getValues();
+
+    let allDevelopersData = {};
+
+    namesData.forEach(nameRow => {
+        let developerNameRussian = nameRow[1];
+        let developerName = nameRow[0]; // Получить имя на английском
+
+        let developerData = data.filter(row => row[0] === developerName);
+        let stackData = {};
+
+        developerData.forEach(row => {
+            let stack = row[2]; // Технология
+            let level = row[3]; // Уровень
+
+            // Подобно тому, как вы обрабатывали уровни в предыдущей функции
+            if (level) {
+                level = level.toLowerCase().trim().replace('middle', 'mid').replace('junior', 'jun').replace('senior', 'sr').replace('?', '').replace('nonchecked', '');
+            }
+            if (level != 'nonchecked') stackData[stack] = level || '';
+        });
+
+        allDevelopersData[developerNameRussian] = stackData;
+    });
+
+    return allDevelopersData;
+}
 
 function getResumeLink(developerName) {
     const candidateWorkflowId = "189YZ_AKtBhVBADGksYIjKQCg8h_ky6Bh5tjEzxUWeXY";
@@ -1076,6 +1288,28 @@ function getAllocationData(developers, isLastWeek = false) {
 
 
 function getDevelopers(workloadSheet, all) {
+    if (!workloadSheet) {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
+        const workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
+
+        let weekMondayDate = getCurrentMonday();
+        let weekSundayDate = getCurrentSunday();
+
+        const weekMondayString = Utilities.formatDate(weekMondayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+        const weekSundayString = Utilities.formatDate(weekSundayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+
+        let workloadSheetName = weekMondayDate.getMonth() === weekSundayDate.getMonth() ?
+            `${weekMondayString.split(" ")[0]}-${weekSundayString.split(" ")[0]} ${weekSundayString.split(" ")[1]}` :
+            `${weekMondayString}-${weekSundayString.split(" ")[0]}`;
+
+        workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
+        if (!workloadSheet) {
+            SpreadsheetApp.getUi().alert(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
+            return;
+        }
+    }
+
     let developers = [];
     let projects = [];
 
@@ -1105,13 +1339,20 @@ function getDevelopers(workloadSheet, all) {
         }
 
         // Create a new developer object
-        let developer = {name: developerName, location: developerLocation, projectHours, projects: {}};
+        let developer = {
+            name: developerName,
+            location: developerLocation,
+            projectHours,
+            projects: {},
+            vacationHours: workloadData[i][projects.indexOf('vacation') + 1] || 0,  // Add vacation hours
+        };
+
         let workedOnTraining = false;
         let workedOnSales = false;
 
         for (let j = 5; j < workloadData[i].length; j++) {
             hours = workloadData[i][j] || 0;
-            let projectName = projects[j - 1];
+            let projectName = projects[j - 1] || "(noname)";
 
             if (hours>0) {
                 developer.projects[projectName] = hours;
@@ -1130,6 +1371,7 @@ function getDevelopers(workloadSheet, all) {
 
     return developers;
 }
+
 
 function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
     if(!workloadSheet) {
@@ -1155,13 +1397,12 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
             `${weekMondayString.split(" ")[0]}-${weekSundayString.split(" ")[0]} ${weekSundayString.split(" ")[1]}` :
             `${weekMondayString}-${weekSundayString.split(" ")[0]}`;
 
-        workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);  // Remove the const keyword
+        workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
         if (!workloadSheet) {
             SpreadsheetApp.getUi().alert(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
             return;
         }
     }
-
 
     let projects = [];
     let developers = [];
@@ -1172,28 +1413,24 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
     developers = workloadData.map(row => row[3]);
 
     // Iterate through the columns of the workloadData
-    for (let j = 1; j < workloadData[0].length; j++) {
+    outer: for (let j = 1; j < workloadData[0].length; j++) {
         // Get the project's name, which is assumed to be in the 5th row
-        let projectName = workloadData[4][j];
+        let projectName = workloadData[4][j].trim() || "(noname)";
         console.log('Project Name:', projectName);
 
         // Get the PM's initials, which are assumed to be in the 1st row
-        let pmInitials = workloadData[0][j];
-        let projectHours = 0;
+        let pmInitials = workloadData[0][j].trim();
         console.log('PM Initials:', pmInitials);
 
-        // If PM initials are not exactly 2 characters long, skip this iteration
-        if (!pmInitials || pmInitials.length !== 2) {
-            continue;
+        // If PM initials are not exactly 2 characters long or not Russian letters, skip this iteration
+        let regex = /[а-яё]{2}/i;
+        if (pmInitials === undefined || pmInitials === null || pmInitials.length !== 2 || !regex.test(pmInitials)) {
+            continue outer;
         }
 
         // If a projectNameFilter is provided and doesn't match the current project, skip this iteration
         if (projectNameFilter && projectName !== projectNameFilter) {
-            continue;
-        }
-
-        if (!projectName) {
-            continue;
+            continue outer;
         }
 
         // Create a new project object
@@ -1202,6 +1439,12 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
         for (let i = 5; i < workloadData.length; i++) {
             let hours = workloadData[i][j] || 0;
             let developerName = developers[i];
+
+            if (developerName === 'total') {
+                break;
+            }
+
+            developerName = developerName.split("(")[0].trim();
 
             if (hours > 0) {
                 project.developers[developerName] = hours;
@@ -1212,11 +1455,14 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false) {
         projects.push(project);
     }
 
+    Logger.log(projects);
     return projects;
 }
 
 
-function getCompetences(sheet, developers) {
+
+
+function getCompetencesOLD(sheet, developers) {
     const COMPETENCES_START_COLUMN = 6; // 'F' column
     const COMPETENCES_END_COLUMN = 55; // 'BD' column
     const DEVELOPERS_START_ROW = 3;
@@ -1423,7 +1669,12 @@ function copyDataToCompetencesSheet() {
 
     // Очистите лист Competences и вставьте новые данные
     competencesSheet.clear();
-    competencesSheet.getRange(1, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
+
+    // Add date and time of data gathering
+    const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
+    competencesSheet.getRange("A1").setValue(`Data gathered at ${currentTime} (Tbilisi, Georgia Timezone)`);
+
+    competencesSheet.getRange(2, 1, sourceData.length, sourceData[0].length).setValues(sourceData);
 
     // Установите высоту всех строк в 150
     competencesSheet.setRowHeights(1, sourceData.length, 150);
@@ -1459,11 +1710,11 @@ function getDeveloperCompetenceData(developerName) {
     }
 
     const competencesData = competencesSheet.getDataRange().getValues();
-    const headers = competencesData[0]; // First row contains the headers
+    const headers = competencesData[1]; // First row contains the headers
     let developerCompetenceData = {};
 
     // Loop through the rest of the rows to find the matching developer
-    for (let i = 1; i < competencesData.length; i++) {
+    for (let i = 2; i < competencesData.length; i++) {
         if (nameTranslations[competencesData[i][0].trim()] === developerName.trim()) {  // If the developer name in the first column matches
             // Loop through the rest of the columns for this row
             for (let j = 0; j < headers.length; j++) {
@@ -1476,6 +1727,47 @@ function getDeveloperCompetenceData(developerName) {
     }
     return developerCompetenceData;
 }
+
+
+
+function getAllDevelopersCompetenceData() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const competencesSheet = ss.getSheetByName('Competences');
+
+    if (!competencesSheet) {
+        Logger.log(`Sheet "Competences" not found.`);
+        return;
+    }
+
+    const namesSheet = ss.getSheetByName('Developers english vs russian names');
+    const namesData = namesSheet.getRange(2, 1, namesSheet.getLastRow(), 2).getValues();
+    const nameTranslations = Object.fromEntries(namesData.map(row => [row[0], row[1]]));
+
+    const competencesData = competencesSheet.getDataRange().getValues();
+    const headers = competencesData[1]; // First row contains the headers
+
+    let allDevelopersCompetenceData = {};
+
+    // Loop through the rest of the rows to find the matching developer
+    for (let i = 2; i < competencesData.length; i++) {
+        let developerData = {};
+        let developerNameEnglish = competencesData[i][0].trim();
+        let developerNameRussian = nameTranslations[developerNameEnglish];
+
+        // Loop through the rest of the columns for this row
+        for (let j = 1; j < headers.length; j++) {
+            let header = headers[j];
+            let value = competencesData[i][j];
+            developerData[header] = value;
+        }
+
+        allDevelopersCompetenceData[developerNameRussian] = developerData;
+    }
+
+    return allDevelopersCompetenceData;
+}
+
+
 
 
 function getWeekPlan() {
@@ -1577,9 +1869,10 @@ function updateDeveloperStackData() {
         output.push(...getDataFromRange(fileSheet, 'E:H', 'Дополнительный', fileName));
     }
 
-    var currentTime = new Date();
-    currentTime.setTime(currentTime.getTime() + 4 * 60 * 60 * 1000);
-    sheet.appendRow([currentTime.toString()]);
+    // Add date and time of data gathering
+    const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
+    sheet.appendRow([`Data gathered at ${currentTime} (Tbilisi, Georgia Timezone)`]);
+
     sheet.appendRow(['Имя разработчика', 'Тип', 'Технология', 'Уровень', 'Желание/Нежелание', 'Стек']);
 
     sheet.getRange(3, 1, output.length, output[0].length).setValues(output);
@@ -1660,44 +1953,52 @@ function getCorrections(uniqueValues, data, colIndex, lowerCase = true, similari
 }
 
 function gatherKeywords() {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ALL report');
-    var dataRange = sheet.getDataRange();
-    var values = dataRange.getValues();
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // Получаем все комментарии из листа
-    var notes = dataRange.getNotes();
+    // Получаем оба листа
+    var sheet1 = ss.getSheetByName('ALL report');
+    var sheet2 = ss.getSheetByName('ALL report last week');
 
-    // Создаем лист "Keywords", если его еще нет
-    var keywordSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Keywords');
-    if (!keywordSheet) {
-        keywordSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('Keywords');
+    // Массив для всех слов
+    var allWords = [];
+
+    // Функция для сбора данных с определенного листа
+    function gatherDataFromSheet(sheet) {
+        var dataRange = sheet.getDataRange();
+        var values = dataRange.getValues();
+
+        // Получаем все комментарии из листа
+        var notes = dataRange.getNotes();
+
+        values.forEach(function(row) {
+            row.forEach(function(cell) {
+                var words = cell.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
+                allWords = allWords.concat(words);
+            });
+        });
+
+        notes.forEach(function(noteRow) {
+            noteRow.forEach(function(note) {
+                var noteWords = note.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
+                allWords = allWords.concat(noteWords);
+            });
+        });
     }
 
-    var allWords = [];
-    values.forEach(function(row) {
-        row.forEach(function(cell) {
-            // Разбиваем ячейки на слова, заменяем переводы строки на пробелы,
-            // приводим к нижнему регистру, удаляем спецсимволы и числа
-            var words = cell.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
-            allWords = allWords.concat(words);
-        });
-    });
-
-    // Добавляем слова из комментариев
-    notes.forEach(function(noteRow) {
-        noteRow.forEach(function(note) {
-            // Разбиваем комментарии на слова, заменяем переводы строки на пробелы,
-            // приводим к нижнему регистру, удаляем спецсимволы и числа
-            var noteWords = note.toString().replace(/\n/g, " ").toLowerCase().replace(/[0-9]+|[^\wа-яА-Я_+.-]+/g, " ").split(" ");
-            allWords = allWords.concat(noteWords);
-        });
-    });
+    // Собираем данные с каждого листа
+    gatherDataFromSheet(sheet1);
+    gatherDataFromSheet(sheet2);
 
     var uniqueWords = Array.from(new Set(allWords));
-    uniqueWords = uniqueWords.filter(word => word.length > 1);  // Оставляем только слова длиннее 1го символа
-    uniqueWords.sort();  // Сортируем слова
+    uniqueWords = uniqueWords.filter(word => word.length > 1 && word[0] !== '+' && word[0] !== '-');
+    uniqueWords.sort();
 
-    // Очищаем лист "Keywords" перед записью новых данных
+    // Создаем лист "Keywords", если его еще нет
+    var keywordSheet = ss.getSheetByName('Keywords');
+    if (!keywordSheet) {
+        keywordSheet = ss.insertSheet('Keywords');
+    }
+
     keywordSheet.clear();
 
     for (var i = 0; i < uniqueWords.length; i++) {
