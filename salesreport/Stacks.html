@@ -71,10 +71,7 @@
         </svg>
     </div>
 </div>
-
 <script>
-    var activeStacks = [];
-
     // При загрузке страницы вызвать функцию Apps Script для получения стеков
     document.getElementById('overlay').style.display = 'block';
     google.script.run.withSuccessHandler(function(stacks) {
@@ -104,38 +101,31 @@
                 button.className = 'btn btn-secondary btn-block stack-btn';  // Добавить класс stack-btn
                 button.textContent = stack;
                 button.onclick = function() {
+                    document.getElementById('overlay').style.display = 'block';
                     if (button.className.includes('btn-active')) {
                         // Если кнопка уже активна, отключить ее
                         button.className = 'btn btn-secondary btn-block stack-btn';
-                        button.textContent = stack;
-                        activeStacks = activeStacks.filter(s => s !== stack);
+                        google.script.run.withSuccessHandler(function() {
+                            document.getElementById('overlay').style.display = 'none';
+                            button.textContent = stack;
+                        }).disableStack(stack);
                     } else {
                         // Если кнопка не активна, включить ее
                         button.className = 'btn btn-secondary btn-block btn-active stack-btn';
-                        button.textContent = '✓ ' + stack;
-                        activeStacks.push(stack);
-                    }
-                    document.getElementById('overlay').style.display = 'block';
-                    google.script.run.withSuccessHandler(function() {
-                        document.getElementById('overlay').style.display = 'none';
-                        if (button.className.includes('btn-active')) {
+                        google.script.run.withSuccessHandler(function() {
+                            document.getElementById('overlay').style.display = 'none';
                             button.textContent = '✓ ' + stack;
-                        } else {
-                            button.textContent = stack;
-                        }
-                    }).sortData(activeStacks);
+                        }).enableStack(stack);
+                    }
                 };
-
                 // Проверить, является ли стек активным
                 if (activeStacks.includes(stack)) {
                     button.className += ' btn-active';
                     button.textContent = '✓ ' + button.textContent;
                 }
-
                 // Добавить кнопку в колонку
                 col.appendChild(button);
             });
-
             // Добавить колонку в div
             stacksDiv.appendChild(col);
         });
@@ -144,19 +134,17 @@
     function resetStackSelection() {
         document.getElementById('overlay').style.display = 'block';
         google.script.run.withSuccessHandler(function() {
-            // После выполнения функции showAllRows, запросить активные стеки и перестроить кнопки
-            google.script.run.withSuccessHandler(function(activeStacks) {
-                // Получить все стеки
-                let stacks = Array.from(document.getElementsByClassName('stack-btn')).map(button => button.textContent.replace('✓ ', ''));
-                // Перестроить кнопки
-                let stacksDiv = document.getElementById('stacks');
-                stacksDiv.innerHTML = '';  // Очистить текущие кнопки
-                buildStackButtons(stacks, activeStacks);  // Построить новые кнопки
-                document.getElementById('overlay').style.display = 'none';
-            }).getActiveStacks();
+            // После выполнения функции showAllRows, перестроить кнопки
+            // Получить все стеки
+            let stacks = Array.from(document.getElementsByClassName('stack-btn')).map(button => button.textContent.replace('✓ ', ''));
+            // Перестроить кнопки
+            let stacksDiv = document.getElementById('stacks');
+            stacksDiv.innerHTML = '';  // Очистить текущие кнопки
+            buildStackButtons(stacks, []);  // Построить новые кнопки
+            document.getElementById('overlay').style.display = 'none';
         }).showAllRows();
     }
-
 </script>
+
 </body>
 </html>
