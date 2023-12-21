@@ -92,7 +92,11 @@
             source: function(request, response) {
                 var term = request.term.split(" ").pop(); // берем последнее слово из запроса
                 var matches = $.grep(keywords, function(keyword) { // находим все ключевые слова, которые содержат это слово
-                    return keyword.indexOf(term) >= 0;
+                    if (typeof keyword === 'string') {
+                        return keyword.indexOf(term) >= 0;
+                    } else {
+                        return false;
+                    }
                 });
                 matches.sort(function(a, b) { // сортируем совпадения
                     var startsWithTermA = a.indexOf(term) === 0;

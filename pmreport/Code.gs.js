@@ -8,7 +8,7 @@ function onOpen() {
     ui.createMenu('Custom Menu')
         .addItem('Save OAuth Token', 'saveOAuthToken')
         .addItem('Generate last week report for current PM', 'generateLastWeekReportForCurrentPMCheckOAuth')
-        .addItem('Gather scrum files data for last week in "Scrum files for last week"', 'gatherDataInCurrentSheetCheckOAuth')
+        .addItem('Gather scrum files data for last week in "Scrum files for last week"', 'gatherDataInSheetLastWeekCheckOAuth')
         .addToUi();
 }
 
@@ -67,13 +67,13 @@ function generateLastWeekReportForCurrentPMCheckOAuth() {
     }
 }
 
-function gatherDataInCurrentSheetCheckOAuth() {
+function gatherDataInSheetLastWeekCheckOAuth() {
     // Проверка наличия OAuth-токена
     var hasToken = checkOAuthToken();
 
     if (hasToken) {
         // Токен присутствует, выполняем функцию updateWeekPlan()
-        gatherDataInCurrentSheet();
+        gatherDataInSheet(true);
     } else {
         // Токен отсутствует, отображаем диалоговое окно пользователю
         var response = Browser.msgBox(
@@ -91,8 +91,6 @@ function gatherDataInCurrentSheetCheckOAuth() {
         }
     }
 }
-
-var monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
 function generateLastWeekReportForCurrentPM() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -112,16 +110,17 @@ function generateLastWeekReportForCurrentPM() {
 
     const reportSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
     const reportSpreadsheet = SpreadsheetApp.openById(reportSheetId);
-    const lastWeekMondayDate = new Date();
-    lastWeekMondayDate.setDate(lastWeekMondayDate.getDate() - lastWeekMondayDate.getDay() - 6);
-    const lastWeekSundayDate = new Date();
-    lastWeekSundayDate.setDate(lastWeekSundayDate.getDate() - lastWeekSundayDate.getDay());
-    const lastWeekMondayString = Utilities.formatDate(lastWeekMondayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
-    const lastWeekSundayString = Utilities.formatDate(lastWeekSundayDate, ss.getSpreadsheetTimeZone(), 'd MMM').toLowerCase();
+
+    const lastWeekMondayDate = getLastMonday();
+    const lastWeekSundayDate = getLastSunday();
+
+    const lastWeekMondayString = Utilities.formatDate(lastWeekMondayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
+    const lastWeekSundayString = Utilities.formatDate(lastWeekSundayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
+
 
     let reportSheetName = lastWeekMondayDate.getMonth() === lastWeekSundayDate.getMonth() ?
         `${lastWeekMondayString.split(" ")[0]}-${lastWeekSundayString.split(" ")[0]} ${lastWeekSundayString.split(" ")[1]}` :
-        `${lastWeekMondayString}-${lastWeekSundayString.split(" ")[0]}`;
+        `${lastWeekMondayString}-${lastWeekSundayString}`;
 
     const reportSheet = reportSpreadsheet.getSheetByName(reportSheetName);
     if (!reportSheet) {
@@ -242,7 +241,16 @@ function generateLastWeekReportForCurrentPM() {
         scrumDataGroupedByDeveloperAndProject[developer][project].totalHours += Math.round(hours * 100) / 100;
         scrumDataGroupedByDeveloper[developer][project] += Math.round(hours * 100) / 100;
         scrumDataGroupedByProject[project].totalHours += Math.round(hours * 100) / 100;
-        if (type === 'DEVfree' || type === 'HR' || type === 'PRESALE' || type === 'Administrative' || type === 'Testing' || type === 'DevOps' || type === 'Learning' || project === 'vacation') {
+        if (
+            type === 'DEVfree' ||
+            type === 'PMfree' ||
+            type === 'HR' ||
+            type === 'PRESALE' ||
+            type === 'Administrative' ||
+            type === 'Testing' ||
+            type === 'DevOps' ||
+            type === 'Learning' ||
+            project === 'vacation') {
             scrumDataGroupedByDeveloperAndProject[developer][project].nonBillableHours += Math.round(hours * 100) / 100;
             scrumDataGroupedByProject[project].nonBillableHours += Math.round(hours * 100) / 100;
         }
@@ -385,7 +393,7 @@ function generateLastWeekReportForCurrentPM() {
 
 
 function getScrumFilesData(fromDate, toDate) {
-    const spreadsheetId = "133dteyNbEFrZgxxIDnI3CytGRGyk_t6U3uUpgNAN0nc";
+    const spreadsheetId = "1PntBe9VKwaXDsI-iOk-CibuZ6X1ZFKQNXNOfh76ysBw";
     const sheetName = "Scrum files";
     const ss = SpreadsheetApp.openById(spreadsheetId);
     const scrumFilesSheet = ss.getSheetByName(sheetName);
@@ -553,28 +561,50 @@ function getLastSunday() {
     return lastSunday;
 }
 
-function gatherDataInCurrentSheet() {
-    const lastWeekMondayDate = getLastMonday();
-    const lastWeekSundayDate = getLastSunday();
 
-    const data = getScrumFilesData(lastWeekMondayDate, lastWeekSundayDate);
+function getCurrentMonday() {
+    const today = new Date();
+    const day = today.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day; // If today is Sunday (0), we need to subtract 6 to get to the last Monday. Otherwise, subtract the number of days up to Monday
+    const currentMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMonday);
+    return currentMonday;
+}
+
+function getCurrentSunday() {
+    const today = new Date();
+    const day = today.getDay();
+    const diffToNextSunday = day === 0 ? 0 : 7 - day; // Here we calculate the number of days remaining to next Sunday
+    const currentSunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToNextSunday);
+    return currentSunday;
+}
+
+function gatherDataInSheet(isLastWeek) {
+    // Get Monday and Sunday dates based on isLastWeek
+    const startDate = isLastWeek ? getLastMonday() : getCurrentMonday();
+    const endDate = isLastWeek ? getLastSunday() : getCurrentSunday();
+
+    const data = getScrumFilesData(startDate, endDate);
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let dataSheet = ss.getSheetByName("Scrum files for last week");
 
-    // Создаем новый лист, если он не существует
+    // Define the sheet name based on isLastWeek
+    let sheetName = isLastWeek ? "Scrum files for last week" : "Scrum files for current week";
+
+    let dataSheet = ss.getSheetByName(sheetName);
+
+    // Create new sheet if it doesn't exist
     if (!dataSheet) {
-        dataSheet = ss.insertSheet("Scrum files for last week");
+        dataSheet = ss.insertSheet(sheetName);
     } else {
-        // Очистить лист, если он уже существует
+        // Clear the sheet if it already exists
         dataSheet.clear();
     }
 
-    // Добавление даты и времени сбора данных
+    // Add date and time of data gathering
     const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
     dataSheet.getRange("A1").setValue(`Data gathered at ${currentTime} (Tbilisi, Georgia Timezone)`);
 
-    // Заголовки для нового листа смещены на строку вниз
+    // Headers for the new sheet moved one row down
     const headers = ["Developer", "Date", "Type", "Project", "Hours"];
     dataSheet.getRange(2, 1, 1, headers.length).setValues([headers]);
 
@@ -587,6 +617,10 @@ function gatherDataInCurrentSheet() {
             currentRow++;
         }
     }
+}
+
+function gatherDataInSheetLastWeek() {
+    gatherDataInSheet(true)
 }
 
 function testGetScrumFilesData() {

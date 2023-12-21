@@ -1,4 +1,5 @@
 function getFormulasForRow(row) {
+    fillFormulas(row);
     return {
         "BM": '=getEventDetailsForCandidate(A' + row + ')',
         "AL": '=parseConclusion(ROW(AJ' + row + '); COLUMN(AJ' + row + '))',
@@ -31,6 +32,7 @@ function onOpen() {
     var ui = SpreadsheetApp.getUi();
     ui.createMenu('Custom Menu')
         .addItem('Save OAuth Token', 'saveOAuthToken')
+        .addItem('Add candididates from Candidates Source/Screen', 'addCandidatesCheckOAuth')
         .addItem('Parse summary from "I" and fill with data', 'parseDataCheckOAuth')
         .addItem('Convert formulas to text', 'removeFunctions')
         .addItem('Convert text to formulas', 'replaceContentWithFormulasCheckOAuth')
@@ -58,13 +60,39 @@ function parseDataCheckOAuth() {
 
         if (response === Browser.Buttons.OK) {
             // Пользователь нажал OK, выполняем действия для получения токена
-            saveOAuthToken()
+            saveOAuthToken();
         } else {
             // Пользователь нажал Cancel, не выполняем функцию parseData()
             return;
         }
     }
 }
+
+function addCandidatesCheckOAuth() {
+    // Проверка наличия OAuth-токена
+    var hasToken = checkOAuthToken();
+
+    if (hasToken) {
+        // Токен присутствует, выполняем функцию parseData()
+        addCandidatesFromSource();
+    } else {
+        // Токен отсутствует, отображаем диалоговое окно пользователю
+        var response = Browser.msgBox(
+            "OAuth Token Required",
+            "Please obtain an OAuth token by clicking the 'OK' button.",
+            Browser.Buttons.OK_CANCEL
+        );
+
+        if (response === Browser.Buttons.OK) {
+            // Пользователь нажал OK, выполняем действия для получения токена
+            saveOAuthToken();
+        } else {
+            // Пользователь нажал Cancel, не выполняем функцию parseData()
+            return;
+        }
+    }
+}
+
 
 function checkOAuthToken() {
     var token = PropertiesService.getScriptProperties().getProperty('OAUTH_TOKEN');
@@ -226,6 +254,10 @@ function parseData() {
             }
         }
         replaceContentWithFormulas();
+
+        sheet.setRowHeight(row, 400);
+
+
         // добавить установку формата даты в дату инт
     } else {
         // Если содержимое ячейки не соответствует требуемому формату, выводится сообщение об ошибке
@@ -243,10 +275,154 @@ function parseData() {
 }
 
 
-function replaceContentWithFormulas() {
+function getStandardDriveLink(url) {
+    if (!url || !url.includes('id=') || !url.includes('&')) return false;
+    var fileId = url.split('id=')[1].split('&')[0]; // Извлекаем ID файла
+    var standardLink = "https://drive.google.com/file/d/" + fileId + "/view";
+    return standardLink;
+}
+
+
+function addCandidatesFromSource() {
+    var sourceSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Кандидаты сорс/скрин");
+    var workflowSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Candidates");
+    var sourceData = sourceSheet.getDataRange().getValues();
+    var workflowData = workflowSheet.getDataRange().getValues();
+
+    // Названия колонок в листе исходных данных
+    var headers = sourceData[0];
+    var nameIndex = headers.indexOf("Имя кандидата на русском языке");
+    var stackIndex = headers.indexOf("Вакансия");
+    var salaryIndex = headers.indexOf("Сумма запроса");
+    var experienceIndex = headers.indexOf("Комментарий статуса");
+    var commentsIndex = headers.indexOf("Комментарии");
+    var fileIndex = headers.indexOf("Файл интервью");
+    var cvIndex = headers.indexOf("Резюме");
+    var telegramIndex = headers.indexOf("Telegram");
+    var skypeIndex = headers.indexOf("Skype");
+
+    console.log('Разбор данных со строки ' + sourceData.length-30);
+
+    for (var i = (sourceData.length-100); i < sourceData.length; i++) {
+        var row = sourceData[i];
+        var status = row[headers.indexOf("Статус")];
+
+        let cv = extractFileId(row[cvIndex]);
+        if (!cv) {
+            cv = getStandardDriveLink(row[cvIndex]);
+            if (cv) row[cvIndex] = cv;
+        }
+        var file = extractFileId(row[fileIndex]);
+
+        console.log(row[nameIndex] + ' ' + isCandidate + ' ' + fileAvailable);
+
+        // Проверка условий для добавления кандидата
+        if (
+            status === "Ожидает интервью" &&
+            row[nameIndex] && row[stackIndex] && row[salaryIndex] &&
+            row[fileIndex] && row[cvIndex] && (row[telegramIndex] || row[skypeIndex]) &&
+            file &&
+            cv
+        ) {
+
+            console.log(row);
+            var isCandidate = isInterviewAlreadyInWorkflow(workflowData, row[nameIndex]);
+            var fileAvailable = checkFileAvailability(file);
+
+            console.log(isCandidate);
+            console.log(fileAvailable);
+
+            if (!isCandidate && fileAvailable) {
+
+                // Добавление данных кандидата в "Candidates workflow"
+                addToWorkflow(workflowSheet, row, nameIndex, stackIndex, salaryIndex, experienceIndex, fileIndex, cvIndex, telegramIndex, skypeIndex, commentsIndex);
+            }
+        }
+
+    }
+}
+
+function addToWorkflow(sheet, rowData, nameIdx, stackIdx, salaryIdx, expIdx, fileIdx, cvIdx, telIdx, skypeIdx, commentsIdx) {
+    var newRow = [];
+    // let date = new Date();
+    // let today = date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+    // Заполнение данных для новой строки
+    newRow[0] = rowData[nameIdx]; // A - Имя кандидата
+    newRow[1] = "Дарья"; // B - Имя рекрутера
+    newRow[2] = "Ожидает интервью"; // C - Статус
+    //newRow[3] = today; // D - Дата
+    newRow[6] = rowData[stackIdx]; // G - Вакансия
+    newRow[9] = rowData[expIdx] + ' ' + rowData[commentsIdx]; // J - Комментарий статуса
+    newRow[12] = rowData[salaryIdx]; // M - Сумма запроса
+    newRow[11] = "=HYPERLINK(\"" + rowData[cvIdx] + "\"; \"Резюме\")"; // L - Резюме
+    newRow[35] = "=HYPERLINK(\"" + rowData[fileIdx] + "\"; \"Interview\")"; // AJ - Файл интервью
+    newRow[30] = "telegram: " + (rowData[telIdx] ? rowData[telIdx] : "") + "\n" + "skype: " + (rowData[skypeIdx] ? rowData[skypeIdx] : ""); // AE - Контакты
+
+    var docId = parseDocID(rowData[fileIdx]); // Предполагаем, что parseDocID - это ваша функция
+    var fields = parseInterview(docId); // Предполагаем, что parseInterview - это ваша функция
+    fields = JSON.parse(fields);
+
+    // Добавление дополнительных данных
+    newRow[13] = fields.educationText;
+    newRow[10] = fields.englishText;
+    newRow[9] = newRow[9] + "\n" + fields.technologyText;
+    newRow[8] = fields.text;
+
+    // // Обновляем ячейки текущей строки данными из output
+    // for (let i = 0; i < output.length; i++) {
+    //   if (output[i] !== undefined) {
+    //     sheet.getRange(row, i+1).setValue(output[i]);
+    //   }
+    // }
+    //
+    // Добавление новой строки в таблицу
+    sheet.appendRow(newRow);
+    var lastRow = sheet.getLastRow();
+    replaceContentWithFormulas(lastRow);
+
+}
+
+function validateRow(row, cv, file, isCandidate) {
+    var errors = [];
+    // Проверки для каждого поля, аналогично вашему примеру
+    // Например, если имя кандидата пустое, добавляем ошибку
+    var nameIndex = headers.indexOf("Имя кандидата на русском языке");
+    var stackIndex = headers.indexOf("Вакансия");
+    var salaryIndex = headers.indexOf("Сумма запроса");
+    var experienceIndex = headers.indexOf("Комментарий статуса");
+    var telegramIndex = headers.indexOf("Telegram");
+    var skypeIndex = headers.indexOf("Skype");
+
+    if (!row[nameIndex]) errorMessages.push("name");
+    if (!row[stackIndex]) errorMessages.push("stack");
+    if (!row[salaryIndex]) errorMessages.push("salary");
+    if (!row[experienceIndex]) errorMessages.push("experience");
+    if (!file) errorMessages.push("file");
+    if (!cv) errorMessages.push("CV");
+    if (!row[skypeIndex] && !row[telegramIndex]) errorMessages.push("telegram or skype");
+    if (isCandidate) errors.push("Candidate was added");
+
+    // Добавьте здесь другие проверки
+
+    return errors;
+}
+
+function isInterviewAlreadyInWorkflow(workflowData, name) {
+
+    for (var i = (workflowData.length - 50); i < workflowData.length; i++) {
+        var cellContent = workflowData[i][0];
+        if (cellContent.includes(name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function replaceContentWithFormulas(row) {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var range = sheet.getActiveRange(); // получает выбранный диапазон
-    var row = range.getRow(); // получает номер первой строки выбранного диапазона
+    if (!row) var row = range.getRow(); // получает номер первой строки выбранного диапазона
 
     // Create a dictionary matching column name to formula
     var formulas = getFormulasForRow(row);
@@ -379,6 +555,7 @@ function generateReport(period = "currentWeek") {
         reportsSheet.getRange(currentRow, 6).setValue(row[4]);
         reportsSheet.getRange(currentRow, 7).setValue(row[5]);
 
+        currentRow++;
         currentRow++;
 
         // Обновляем предыдущую дату
@@ -747,13 +924,13 @@ function parseEventComments(eventComments, candidateScores, comments) {
 function getEventDetailsForCandidate(candidateName) {
     var now = new Date();
     var oneYearAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 365 days for a year - исправили на 30 дней, нет смысла теперь год тянуть
-    var fifteenDaysLater = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    var thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     var oneYearAgoISOString = oneYearAgo.toISOString();
-    var fifteenDaysLaterISOString = fifteenDaysLater.toISOString();
+    var thirtyDaysLaterISOString = thirtyDaysLater.toISOString();
 
     var calendarId = 'primary'; // Use your calendar ID here
-    var url = "https://www.googleapis.com/calendar/v3/calendars/" + calendarId + "/events?timeMin=" + oneYearAgoISOString + "&timeMax=" + fifteenDaysLaterISOString;
+    var url = "https://www.googleapis.com/calendar/v3/calendars/" + calendarId + "/events?timeMin=" + oneYearAgoISOString + "&timeMax=" + thirtyDaysLaterISOString;
 
     var token = PropertiesService.getScriptProperties().getProperty('OAUTH_TOKEN');
 
@@ -964,6 +1141,7 @@ function checkStringForMatch(str) {
         "netremove": ".NET (убрать",
         "netnew": ".Net (new, WIP)",
         "nodejs": "NodeJS",
+        "vanillajs" : "VanillaJS",
         "react": "React/RN",
         "ios": "iOS Native",
         "android": "Android Native",
@@ -1054,7 +1232,7 @@ function parseCustom(customKeyword, row, column) {
 
 function parseInterview(docId,customKeyword) {
     // input - docId документа, который нужно распарсить
-    if(!docId) var docId = "1mupGZIZXRcoje8MI2ekLZED5Q1lAZMLM9YE3_mWgKaY"; // идентификатор документа
+    if(!docId) var docId = "171cigxFBFqEBoa88kQtpIlryaVC1wiO16HDuZVjc9Gg"; // идентификатор документа
 
     var token = PropertiesService.getScriptProperties().getProperty('OAUTH_TOKEN');
     var url = "https://docs.googleapis.com/v1/documents/" + docId; // URL для запроса
@@ -1101,35 +1279,36 @@ function parseInterview(docId,customKeyword) {
                         var customStop = textContent.match(new RegExp(customKeyword + '\\s*'));  // Как нашли в тексте custom поле - останавливаем поиск
                     }
                     var keywords = {
-                        "english": "Английский\\s*",
-                        "experience": "Коммерческий опыт\\s*",
-                        "education": "Высшее образование\\s*",
-                        "remote": "Опыт удаленной работы\\s*",
-                        "computer": "Есть ли хороший домашний компьютер\\s*",
-                        "quiz": "Quiz\\s*",
-                        "softskills": "Софт-скиллы\\s*",
-                        "tracker": "ТРЕКЕР и как обычно отслеживает время\\s*",
-                        "technology": "Технологии\\s*",
-                        "location": "ЛОКАЦИЯ\\/РЕЛОКАЦИЯ\\s*",
-                        "legal": "ИП\\/САМОЗАНЯТЫЙ\\s*",
-                        "business": "Есть ли у вас сейчас свой бизнес\\s*",
-                        "daysoff": "Планируете ли вы отпуск\\s*",
-                        "latestproject": "Последний проект\\s*",
+                        "english": "Английский",
+                        "experience": "Коммерческий опыт",
+                        "education": "Высшее образование",
+                        "remote": "Опыт удаленной работы",
+                        "computer": "Есть ли хороший домашний компьютер",
+                        "quiz": "Quiz",
+                        "softskills": "Софт-скиллы",
+                        "tracker": "ТРЕКЕР и как обычно отслеживает время",
+                        "technology": "Технологии",
+                        "location": "ЛОКАЦИЯ\\/РЕЛОКАЦИЯ",
+                        "legal": "ИП\\/САМОЗАНЯТЫЙ",
+                        "business": "Есть ли у вас сейчас свой бизнес",
+                        "daysoff": "Планируете ли вы отпуск",
+                        "latestproject": "Последний проект",
                     };
 
-                    if(customKeyword) {
-                        keywords["custom"] = customKeyword + '\\s*';
+                    if (customKeyword) {
+                        keywords["custom"] = customKeyword;
                     }
 
                     var matches = {};
-                    for(var key in keywords) {
-                        matches[key] = textContent.match(new RegExp(keywords[key]));
+                    for (var key in keywords) {
+                        var regex = new RegExp(keywords[key], "i"); // "i" указывает на регистронезависимый поиск
+                        matches[key] = textContent.match(regex);
                     }
 
-                    for(var key in matches) {
-                        if(matches[key]) {
+                    for (var key in matches) {
+                        if (matches[key]) {
                             text += matches[key][0];
-                            Logger.log(matches[key][0]);
+                            Logger.log('найден ключ:' + matches[key][0]);
                             current = key;
                         }
                     }
@@ -1140,6 +1319,7 @@ function parseInterview(docId,customKeyword) {
         var lastTable = element.table; // запомнить его как последнюю таблицу
 
         if (lastTable) { // если нашли хотя бы одну таблицу
+            Logger.log("найдена таблица!");
             var tableRows = lastTable.tableRows;
             for (var i = 0; i < tableRows.length; i++) {
                 var row = tableRows[i];
@@ -1156,10 +1336,12 @@ function parseInterview(docId,customKeyword) {
                                 var textRun = textRuns[l]; // текущий text run
                                 if (textRun.textRun) var textContent = textRun.textRun.content; // текстовое содержимое text run
                                 if (textContent != 'undefined') {
+                                    Logger.log("В таблице найден текст");
+                                    Logger.log(textContent);
                                     var serviceField = textContent.match(/(Оценка|Ответ|ЗП)\s*/);
                                     if (!serviceField) {
                                         textContent = textContent.replace(/: \n/g, " ");
-                                        Logger.log(textContent);
+                                        Logger.log(textContent + " - текст удовлетворяет условиям");
                                         if (current && current != "technology") text += textContent;
 
                                         switch (current) {
@@ -1200,6 +1382,7 @@ function parseInterview(docId,customKeyword) {
     return JSON.stringify(fields);
 }
 
+
 function replaceLinebreaks(text) {
     if (text) { // проверка на undefined
         return text.replace(/\n\n/g, '').replace(/:/g, '');
@@ -1207,9 +1390,44 @@ function replaceLinebreaks(text) {
     return ''; // возвращает пустую строку, если text не определен
 }
 
+
 function testGetInterviewsText() {
     for (var count = 1; count <= 1000; count++) {
         var interviewsText = getInterviewsText(count);
         Logger.log(count + ": " + interviewsText);
+    }
+}
+
+
+function getLinkFromRichText(cellAddress) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var range = sheet.getRange(cellAddress);
+    var richTextValue = range.getRichTextValue();
+    var url = richTextValue.getLinkUrl();
+    return url;
+}
+
+
+function fillFormulas(row) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+    if(row) {
+        var lastRow = row;
+    } else {
+        var row = 2;
+        var lastRow = sheet.getLastRow();
+    }
+
+    for (var i = row; i <= lastRow; i++) {
+        var cellA = "A" + i;
+        var cellG = "G" + i;
+        var cellAH = "AH" + i;
+        var cellAJ = "AJ" + i;
+        var cellL = "L" + i;
+
+        var formula = '=' + cellAH + ' & "MSK " & ' + cellA + ' & " (" & ' + cellG + ' & ")\nФайл: " & getLinkFromRichText("' + cellAJ + '") & " \nC/V: " & getLinkFromRichText("' + cellL + '") & " \nСпустя час напишу, нужно ли или когда надо будет подключаться"';
+
+        var range = sheet.getRange("BN" + i); // Замените "Z" на колонку, где вы хотите поместить формулу
+        range.setFormula(formula);
     }
 }
