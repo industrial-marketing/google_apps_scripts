@@ -8,7 +8,7 @@ var functionsMap = {
     'generateAllReportLastWeek': generateAllReportLastWeek,
     'gatherDataInSheet': gatherDataInSheet,
     'gatherDataInSheetLastWeek': gatherDataInSheetLastWeek,
-    'gatherScrumFilesDataFromFolder': gatherScrumFilesDataFromFolder,
+    'generateGatherScrumFilesDataFromFolder': gatherScrumFilesDataFromFolder,
     // 'copyDataToCompetencesSheet': copyDataToCompetencesSheet,
     'updateDeveloperStackData': updateDeveloperStackData,
     'collectCandidatesData': collectCandidatesData,
@@ -23,6 +23,57 @@ var monthNamesShort = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "
 function saveOAuthToken() {
     var token = ScriptApp.getOAuthToken();
     PropertiesService.getScriptProperties().setProperty('OAUTH_TOKEN', token);
+}
+
+// function saveOAuthSlackToken() {
+//     var token = getOAuthService();
+//     PropertiesService.getScriptProperties().setProperty('OAUTH_TOKEN', token);
+// }
+
+function getOAuthService() {
+    return OAuth2.createService('Slack')
+        .setAuthorizationBaseUrl('https://slack.com/oauth/v2/authorize')
+        .setTokenUrl('https://slack.com/api/oauth.v2.access')
+        .setClientId('6690155511488.7180362243282')  // Replace with your Slack app's client ID
+        .setClientSecret('f49bebba3470b85defca2ea307ebc2e8')  // Replace with your Slack app's client secret
+        .setCallbackFunction('authCallback')
+        .setPropertyStore(PropertiesService.getUserProperties())
+        .setScope('chat:write')
+        .setScope('users:read')
+        .setScope('users:read.email')
+        .setParam('access_type', 'offline')
+        .setParam('prompt', 'consent')
+        .setParam('user_scope', 'chat:write');
+}
+
+function authCallback(request) {
+    var service = getOAuthService();
+    var authorized = service.handleCallback(request);
+    if (authorized) {
+        return HtmlService.createHtmlOutput('Success! You can close this tab.');
+    } else {
+        return HtmlService.createHtmlOutput('Denied. You can close this tab');
+    }
+}
+
+function getAuthorizationUrl() {
+    var service = getOAuthService();
+    return service.getAuthorizationUrl();
+}
+
+function authorize() {
+    var url = getAuthorizationUrl();
+    var htmlOutput = HtmlService.createHtmlOutput('<a href="' + url + '" target="_blank">Authorize</a>');
+    SpreadsheetApp.getUi().showModalDialog(htmlOutput, 'Authorize Slack');
+}
+
+
+function logout() {
+    getOAuthService().reset();
+}
+
+function isAuth() {
+    return getOAuthService().hasAccess();
 }
 
 function onOpen() {
@@ -44,6 +95,7 @@ function onOpen() {
         .addItem('Обновить DeveloperCandidatesData', 'wrapperCollectCandidatesData')
         .addItem('Обновить DeveloperUpworkData', 'wrapperCollectDeveloperUpworkData')
         .addItem('Обновить DeveloperVacationData', 'wrapperCollectDeveloperVacationData')
+        .addItem('Slack авторизация', 'authorize')
         .addToUi();
     ui.createMenu('Фильтры')
         .addItem('Показать все строки', 'showAllRows')
@@ -201,7 +253,7 @@ function sortDataAscending() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -218,7 +270,7 @@ function sortDataDescending() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -235,7 +287,7 @@ function getStacks() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -265,11 +317,11 @@ function getActiveStacks() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
-    Logger.log(sheetName);
+    // Logger.log(sheetName);
 
     var headerValues = sheet.getRange("5:5").getValues()[0];
     var startColumn = 11;
@@ -290,7 +342,7 @@ function getActiveStacks() {
         }
     }
 
-    Logger.log(activeStacks); // Выводим activeStacks в Logger
+    // Logger.log(activeStacks); // Выводим activeStacks в Logger
     return activeStacks;
 }
 
@@ -300,7 +352,7 @@ function enableStack(stackName) {
     var sheetName = sheet.getName();
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -322,7 +374,7 @@ function disableStack(stackName) {
     var sheetName = sheet.getName();
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -342,7 +394,7 @@ function hideEmptyRows(sheet, sortColumn) {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -423,7 +475,7 @@ function showAllRows() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -492,7 +544,7 @@ function showAllRows() {
     sheet.setRowHeights(2, 1, 20);
     sheet.setRowHeights(3, 1, 40);
     sheet.setRowHeights(4, 1, 20);
-    sheet.setRowHeights(5, 1, 150);
+    sheet.setRowHeights(5, 1, 80);
     sheet.setRowHeights(6, 1, 20);
     var startRow = 7;
     var numRows = sheet.getLastRow() - startRow + 1;
@@ -508,7 +560,7 @@ function hideTextInfo() {
     var validSheetNames = ['ALL report', 'SALES report', 'ALL report last week'];
 
     if (validSheetNames.indexOf(sheetName) === -1) {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -532,7 +584,7 @@ function showAllColumns() {
     var validSheetNames = ['ALL report', 'SALES report', 'ALL report last week'];
 
     if (validSheetNames.indexOf(sheetName) === -1) {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -597,7 +649,7 @@ function showOnlyBenchRows() {
 
     // Проверяем, запущена ли функция на правильном листе
     if (sheetName !== 'ALL report' && sheetName !== 'SALES report' && sheetName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -702,7 +754,7 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
 
     // Проверяем, запущена ли функция на правильном листе
     if (reportName !== 'SharpDev Bench Report' && reportName !== 'ALL report' && reportName !== 'SALES report' && reportName !== 'ALL report last week') {
-        Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
+        // Logger.log('Эта функция может быть запущена только на листах "ALL report", "SALES report" или "ALL report last week".');
         return;
     }
 
@@ -726,8 +778,6 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
         `${mondayString.split(" ")[0]}-${sundayString.split(" ")[0]} ${sundayString.split(" ")[1]}` :
         `${mondayString}-${sundayString}`;
 
-    console.log(workloadSheetName);
-
     const workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
     if (!workloadSheet) {
         //SpreadsheetApp.getUi().alert(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
@@ -749,10 +799,6 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
         return sum;
     }, 0);
 
-    console.log(sumColumnE);  // Print the sum to the logs
-
-    // getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek = false, isPaidHours = false, weekNumber = 0, workloadSpreadsheet = null, nextWeeksProjects = {}) {
-
     let developers = getDevelopers(workloadSheet, all, null, null, isLastWeek);
     let projectsData = getProjects(workloadSheet, null, isLastWeek);
     let projects = projectsData.projects;
@@ -773,12 +819,9 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
         week: projects,
         nextWeek: projectsNextWeek,
         nextNextWeek: projectsNextNextWeek,
-        nextNextNextWeek: projectsNextNextNextWeek
-    }
+        nextNextNextWeek: projectsNextNextNextWeek,
+    };
 
-    console.log('Количество записей: ' + projects.length);
-
-    // console.log(projects);
 
     // Считываем данные без заголовков
     const data = developersPortfolioSheet.getRange(2, 1, developersPortfolioSheet.getLastRow() - 1, developersPortfolioSheet.getLastColumn()).getValues();
@@ -942,7 +985,7 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
 
 
 
-    //Logger.log(developers.length);
+    //// Logger.log(developers.length);
 
 
     // Initialize report
@@ -1192,6 +1235,9 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
     for (let developer of developers) {
         if(!developer.name) continue;
         let developerName = developer.name.split("(")[0].trim(); // Remove everything after the "(" and trim spaces
+
+        Logger.log('Output a row for ' + developerName);
+
         let allocationList = '';
         if(allAllocationData[developerName] && allAllocationData[developerName].list) allocationList = allAllocationData[developerName].list;
 
@@ -1307,7 +1353,6 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
         }
 
         if(!isBench && !isLastWeek) {
-
             for (let week in nextWeekProjects) {
                 for (let project of nextWeekProjects[week]) {
                     for (let developer in project.developers) {
@@ -1333,15 +1378,11 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
             if (weekPlanHoursTotal > 0 && trainingHours > 0) weekPlanHoursTotal = weekPlanHoursTotal - trainingHours;
         }
 
-
-
         // для SALES нужны только они
         if ((!all || isBench) && nextWeekPlanHoursTotal >= 20 && nextNextWeekPlanHoursTotal >= 20 && nextNextNextWeekPlanHoursTotal >= 20 && trainingHours === 0 && salesHours === 0) {
+            Logger.log('Пропускаем ' + developerName);
             continue;
         }
-
-
-
 
         let column = 2;
         let developerNameToShow = isBench ? transliterate(developerName) : developerName;
@@ -1357,8 +1398,6 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
             continue;
         }
 
-
-
         reportSheet.getRange(row, column).setNote(candidateComment);
         column++;
         reportSheet.getRange(row, column).setValue(developer.location).setVerticalAlignment("middle").setWrap(true);
@@ -1369,8 +1408,6 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
         column++;
         reportSheet.getRange(row, column).setValue(salesHours).setVerticalAlignment("middle");
         column++;
-
-
 
         if(!isBench && !isLastWeek) {
             reportSheet.getRange(row, column).setValue(weekPlanHoursTotal).setVerticalAlignment("middle").setHorizontalAlignment("center").setNote(weekProjectHours);
@@ -1426,26 +1463,81 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
             (getCompetenceData(developerName)['Навыки самопрезентации'] ?? '') + '  ' +
             (getCompetenceData(developerName)['Гибкость мышления'] ?? '')
         ).setVerticalAlignment("middle").setHorizontalAlignment("center");
-        column++;
 
-        n = 0;
+
+        //column++;
+
+        // n = 0;
+
+        Logger.log('Выводим стеки для ' + developerName);
+
+        // for (let stack of sortedStacks) {
+        //     n++;
+        //     let stackLevel = stackData[stack] || '';
+        //     let cell = reportSheet.getRange(row, column);
+        //     cell.setValue(stackLevel).setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+
+        //     // Устанавливаем цвета для разных уровней
+        //     if (stackLevel.startsWith('jun')) {
+        //         cell.setBackground("#add8e6");  // Цвет для Junior (Светло-синий)
+        //     } else if (stackLevel.startsWith('mid')) {
+        //         cell.setBackground("#90ee90");  // Цвет для Middle (Светло-зелёный)
+        //     } else if (stackLevel.startsWith('sr')) {
+        //         cell.setBackground("#f4a460");  // Цвет для Senior (Светло-коричневый)
+        //     }
+        //     column++;
+        // }
+
+
+        /// optimized stacks
+
+        let values = [];
+        let styles = [];
+        n = 0;  // Переместим объявление сюда
 
         for (let stack of sortedStacks) {
             n++;
             let stackLevel = stackData[stack] || '';
-            let cell = reportSheet.getRange(row, column);
-            cell.setValue(stackLevel).setTextRotation(90).setVerticalAlignment("middle").setHorizontalAlignment("center");
+            values.push(stackLevel);  // Изменяем на одномерный массив
 
-            // Устанавливаем цвета для разных уровней
+            let style = {
+                textRotation: 90,
+                verticalAlignment: "middle",
+                horizontalAlignment: "center",
+                background: ""
+            };
+
             if (stackLevel.startsWith('jun')) {
-                cell.setBackground("#add8e6");  // Цвет для Junior (Светло-синий)
+                style.background = "#add8e6";  // Цвет для Junior (Светло-синий)
             } else if (stackLevel.startsWith('mid')) {
-                cell.setBackground("#90ee90");  // Цвет для Middle (Светло-зелёный)
+                style.background = "#90ee90";  // Цвет для Middle (Светло-зелёный)
             } else if (stackLevel.startsWith('sr')) {
-                cell.setBackground("#f4a460");  // Цвет для Senior (Светло-коричневый)
+                style.background = "#f4a460";  // Цвет для Senior (Светло-коричневый)
             }
+
+            styles.push(style);
             column++;
         }
+
+        let startColumn = column - sortedStacks.length + 1;
+        let range = reportSheet.getRange(row, startColumn, 1, sortedStacks.length);
+
+        // Преобразование values в двумерный массив для setValues
+        let valuesToSet = [values];
+        range.setValues(valuesToSet);
+
+        range.setTextRotation(90)
+            .setVerticalAlignment("middle")
+            .setHorizontalAlignment("center");
+
+        for (let i = 0; i < sortedStacks.length; i++) {
+            range.getCell(1, i + 1).setBackground(styles[i].background);
+        }
+
+        column++;
+
+        ///////////////////////////////////////////////
+
 
         if (!isBench) {
             reportSheet.getRange(row, column).setValue(developer.projectHours).setVerticalAlignment("top").setWrap(true).setFontSize(8);
@@ -1542,6 +1634,8 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
 
             }
 
+            Logger.log('Выводим оставшиеся выходные дни и ставки ' + developerName);
+
             let vacationDays = findDeveloperVacation(developerVacations, developerName);
             if (vacationDays !== -1) {
                 var days = Math.floor(vacationDays[1]);
@@ -1561,7 +1655,9 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
             }
             column++;
 
-            if (profileId !== -1) {
+            Logger.log('Выводим информацию по проектам и ссылку на генерацию CV ' + developerName);
+
+            if (profileId !== -1 && profileId !== '') {
                 // Добавление информации о проектах в комментарий
                 if (developersProjects[englishName]) {
                     var devProjects = developersProjects[englishName];
@@ -1698,7 +1794,7 @@ function generateSalesReport(all = false, isLastWeek = false, isBench = false) {
     reportSheet.setRowHeights(2, 1, 1);
     reportSheet.setRowHeights(3, 1, 1);
     reportSheet.setRowHeights(4, 1, 20);
-    reportSheet.setRowHeights(5, 1, 150);
+    reportSheet.setRowHeights(5, 1, 80);
     reportSheet.setRowHeights(6, 1, 20);
 
 }
@@ -1714,6 +1810,10 @@ function generateWeekReportLastWeek() {
 
 function generateWeekReportLast2Weeks() {
     generateWeekReport(true, 2);
+}
+
+function generateWeekReportLast2WeeksAllHours() {
+    generateWeekReport(true, 2, false);
 }
 
 function generateWeekReportLast4Weeks() {
@@ -1736,10 +1836,14 @@ function generateWeekReportLast52Weeks() {
     generateWeekReport(true, 52);
 }
 
-function generateWeekReport(isLastWeek = false, weeks = 1) {
+function generateWeekReport(isLastWeek = false, weeks = 1, isPaidHours = true) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     let reportName = "PAID HOURS report";
+
+    const darkRed = "#cb4335"; // Более темный красный цвет
+    const lightRed = "#f4c7c3"; // Светлый красный цвет
+    const lightYellow = "#ffffe0"; // Светло-желтый цвет
 
     // Если флаг isLastWeek установлен в true, добавляем 'last week' к имени отчета
     if(isLastWeek) {
@@ -1749,7 +1853,7 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
 
     // // Проверяем, запущена ли функция на правильном листе
     // if (reportName !== 'PAID HOURS report' && reportName !== 'PAID HOURS report last week') {
-    //     Logger.log('Эта функция может быть запущена только на листe "PAID HOURS report".');
+    //     // Logger.log('Эта функция может быть запущена только на листe "PAID HOURS report".');
     //     return;
     // }
 
@@ -1761,7 +1865,7 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     if (isLastWeek) {
         if (weeks > 1) {
             mondayDate = getLastMonday(weeks);
-            sundayDate = getLastSunday(1);
+            sundayDate = getLastSunday();
         } else {
             mondayDate = getLastMonday();
             sundayDate = getLastSunday();
@@ -1778,8 +1882,6 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     let workloadSheetName = mondayDate.getMonth() === sundayDate.getMonth() ?
         `${mondayString.split(" ")[0]}-${sundayString.split(" ")[0]} ${sundayString.split(" ")[1]}` :
         `${mondayString}-${sundayString}`;
-
-    console.log(workloadSheetName);
 
     let workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
     if (!workloadSheet && weeks === 1) {
@@ -1814,11 +1916,17 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
         return sum;
     }, 0);
 
-    console.log(sumColumnE);  // Print the sum to the logs
 
-    let developers = getDevelopers(workloadSheet, true, null, null, isLastWeek, true, -weeks);
-    let projectsData = getProjects(workloadSheet, null, isLastWeek, true, -weeks);
+    /////////////////
+    // СБОР ДАННЫХ //
+    /////////////////
+
+    console.log('СБОР ДАННЫХ');
+
+    let developers = getDevelopers(workloadSheet, true, null, null, isLastWeek, isPaidHours, -weeks);
+    let projectsData = getProjects(workloadSheet, null, isLastWeek, isPaidHours, -weeks);
     let projects = projectsData.projects;
+    let paidHoursPlan = projectsData.additionalData[0];
     let weekPlans = {};
 
     if (weeks > 1) {
@@ -1834,19 +1942,28 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
                 `${mondayString.split(" ")[0]}-${sundayString.split(" ")[0]} ${sundayString.split(" ")[1]}` :
                 `${mondayString}-${sundayString}`;
 
-            console.log(workloadSheetName);
-
             let workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
             if (!workloadSheet) {
                 SpreadsheetApp.getUi().alert(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
                 return;
             }
 
-            let projectsData = getProjects(workloadSheet, null, isLastWeek, true, -weekNumber);
+            let projectsData = getProjects(workloadSheet, null, isLastWeek, isPaidHours, -weekNumber);
             let projects = projectsData.projects;
-            let developers = getDevelopers(workloadSheet, true,  null, null, isLastWeek, true, -weekNumber);
+            let developers = getDevelopers(workloadSheet, true,  null, null, isLastWeek, isPaidHours, -weekNumber);
 
-            weekPlans[weekNumber] = { developers, projects };
+            // Инициализация additionalData и извлечение данных
+            let additionalData = projectsData.additionalData || [];
+            let paidHoursPlan = 0;
+            let workingHours = 0;
+            if (additionalData.length > 0) {
+                paidHoursPlan = additionalData[0] || 0;
+                workingHours = additionalData.find(data => data.workingHours).workingHours;
+            }
+
+            //let actualWeekNumber = getWeekNumberForDate();
+
+            weekPlans[weekNumber] = { developers, projects, paidHoursPlan, workingHours };
 
             for (let project of projects) {
                 if (!allProjects[project.projectName]) {
@@ -1866,25 +1983,42 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
         }
         projects = Object.values(allProjects);
         developers = Object.values(allDevelopers);
-    } else {
-        developers = getDevelopers(workloadSheet, true, null, null, isLastWeek, true);
-        let projectsData = getProjects(workloadSheet, null, isLastWeek, true);
+    }
+    else {
+        developers = getDevelopers(workloadSheet, true, null, null, isLastWeek, isPaidHours);
+        let projectsData = getProjects(workloadSheet, null, isLastWeek, isPaidHours);
         projects = projectsData.projects;
+        paidHoursPlan = projectsData.additionalData[0];
+        workingHours = projectsData.additionalData.find(data => data.workingHours).workingHours;
     }
 
     let planDevelopers = developers;
 
     // Get data for all developers
-    if (weeks > 1) workloadSheet = null;
+    // if (weeks > 1) workloadSheet = null;
 
     // getAllocationData(developers, projects, isLastWeek,true, weeks);
 
-    let allocationData = getAllocationData(developers, projects, isLastWeek, true, weeks);
+    let allocationData = getAllocationData(developers, projects, isLastWeek, isPaidHours, weeks);
     let allAllocationData = allocationData.allocationData;
     let allDailyData = allocationData.dailyData;
     let allScrumData = allocationData.scrumData;
 
-    developers = getDevelopers(workloadSheet, true, allAllocationData, allDailyData, isLastWeek, true);
+    let pmList = [];
+
+    allScrumData.forEach(row => {
+        const [developerShort, date, type, project, hours] = row;
+
+        if (type === 'PM' || type === 'PMfree') {
+            if (!pmList.includes(developerShort)) {
+                pmList.push(developerShort);
+            }
+        }
+    });
+
+    console.log(pmList);
+
+    developers = getDevelopers(workloadSheet, true, allAllocationData, allDailyData, isLastWeek, isPaidHours);
 
     // Обходим данные allAllocationData и добавляем недостающие проекты и разработчиков
     for (let developerName in allAllocationData) {
@@ -2004,8 +2138,80 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
 
     reportSheet.getRange('B5').setValue( reportName + ' ' + mondayString + ' - ' + sundayString).setFontSize(20);
 
+    /////////////////////////
+    // Вставляем заголовки //
+    /////////////////////////
 
-    // Вставляем заголовки
+    // PAID HOURS REPORT NOTIFICATION SAMPLE
+
+    // по ходу вывода подробного табличного отчета, нам нужно сформировать короткое текстовое уведомление
+    // для добавления в таблицу PaidHoursNotifications (Date - последняя дата данных в отчете - вчерашний день, Status - new или sent, CurrentTime (дата и время формирования отчета),	Notification)
+    // отчет нужно формировать только, если у нас weeks = 1.
+    // в понедельник мы формируем отчет только если lastweek = true
+    // вторник - пятница формируем отчет только если lastweek = false
+    // отчет за текущую дату не должен дублироваться, а только обновляться в том же поле за ту же дату
+
+    // в отчете нам нужны следующие данные которые мы соберем по ходу.
+    // сначала сформируем заголовок для текущей или прошлой недели
+    // для каждого дня в заголовках формируемой
+
+    // let paidHoursDailyReportTitle;
+    // например
+    // Платные часы (текущая неделя)
+    // План 22-28 апреля - 498
+
+    // собираем в объект даты и количество платных часов за день (все dailyHours за день для всех разработчиков)
+
+    // let paidHoursDailyReportListByDate = { date, hours };
+    // например
+    // 22.04 - 455
+    // 23.04 - 474
+    // 24.04 - 467
+    // 25.04 - 476
+    // 26.04 - 417
+    // 27.04 - 102
+    // 28.04 - 16
+
+    // во второй объект
+
+    // берем данные по отсутствующим часам за последний отчетный день (те у кого выводится темно красный цвет)
+
+    // let paidHoursDailyReportYesterdayNoHours = { developer, hours };
+    // например
+    // Нет часов
+    // Крушеницкий Владислав	0
+    // Раткин Иван	0
+    // Рубцов Илья	0
+    // Цугаев Ахмад	0
+
+    // берем данные по мало платных за последний рабочий день (те у кого выводится светло-желтый), мы можем проверить какой working day был последний на этой неделе
+
+    // let paidHoursDailyReportYesterdayLessHours = { developer, hours };
+    // например
+    // Мало платных
+    // Гордеев Олег	0
+    // Петров Егор	4
+    // Тумаков Андрей	0
+
+    // формируем выводы если это lastweek, который отправляем в понедельник
+    // нам нужно вывести сумму всех платных часов за день dailyHours для все дней недели и всех разработчиков.
+    // также берем сумму платных часов по плану, считаем на сколько процент выполнен план
+    // берем сумму всех часов - платных и бесплатных без отпуска - то что выводим в четвертой строке - сумма за все дни
+    // в конце делим сумму платных на сумму всех часов и получаем процент платных, также в конце выводим. округляем до двух знаков.
+
+    // let paidHoursDailyReportLastWeekStats;
+    // например
+    // За последнюю неделю
+    // Платных 2406.43 (по плану 2472 - выполнен на 97%)
+    // Всего 2838.46
+    // Процент 84.78%
+
+    // в самом конце все данные складываем в текстовое сообщение, которое кладем в Notification, либо обновляем, если там уже есть данные.
+
+    // отправку добавим позже
+
+
+    console.log('Вставляем заголовки');
 
     let column = 2;
     let row = 7;
@@ -2020,14 +2226,59 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     column++;
 
     let endColumn = column;
-
     let dateRange = getDateRange(mondayDate, sundayDate);
+    let weekNumber = weeks;
+    let dayNumber = 0;
+    let plannedPaidHours = 0;
+    let weekPlan = 0;
 
     // Добавление заголовков для каждой даты
     dateRange.forEach(date => {
-        reportSheet.getRange(row, column).setValue(formatDateForHeader(date));
+        let formattedDate = formatDateForHeader(date);
+        let isWorkingDay = isWorkDay(date, allDailyData);
+        dayNumber++;
+
+        if (weeks === 1) {
+            weekPlan = paidHoursPlan;
+            let workingDays = workingHours / 8; // Предполагаем, что рабочий день длится 8 часов
+
+            if (isWorkingDay) {
+                plannedPaidHours = weekPlan / workingDays;
+                reportSheet.getRange(row, column).setValue(formattedDate).setNote(`Planned paid hours: ${plannedPaidHours.toFixed(2)}`);
+            } else {
+                reportSheet.getRange(row, column).setValue(formattedDate);
+            }
+        } else {
+            //let weekNumber = getWeekNumberForDate(date, mondayDate, weeks);
+
+            if (weekPlans[weekNumber]) {
+                weekPlan = weekPlans[weekNumber].paidHoursPlan || 0;
+                let weekWorkingHours = weekPlans[weekNumber].workingHours || 0;
+                let workingDays = weekWorkingHours / 8;
+
+                if (isWorkingDay) {
+                    let plannedPaidHours = weekPlan / workingDays;
+                    reportSheet.getRange(row, column).setValue(formattedDate).setNote(`Planned paid hours: ${plannedPaidHours.toFixed(2)}`);
+                } else {
+                    reportSheet.getRange(row, column).setValue(formattedDate);
+                }
+            } else {
+                reportSheet.getRange(row, column).setValue(formattedDate);
+            }
+
+        }
+
+        if (dayNumber === 7) {
+            reportSheet.getRange(row, column).setNote(`Planned week paid hours: ${weekPlan.toFixed(2)}`);
+            dayNumber = 0;
+            weekNumber--;
+        }
+
+        if (!isWorkingDay) reportSheet.getRange(row, column).setBackground(lightRed);
+
         column++;
     });
+
 
 
     // Write TOTAL in the next two columns
@@ -2110,13 +2361,9 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     reportSheet.setColumnWidth(column, 60);
     //const scrumTotalColumn = column;
 
-
-
-
-
     column = column++;
 
-
+    // UNCOMMENT TO DISPLAY PROJETS
     //reportSheet.getRange(3, scrumTotalColumn).setValue(sumColumnE);
 
     // for (let project of projects) {
@@ -2152,13 +2399,38 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     // }
 
     /// Вставляем данные
+    // UNCOMMENT TO DISPLAY PROJETS
 
     row++;
 
+    //////////////////
+    // ВЫВОД ДАННЫХ //
+    //////////////////
 
-
+    console.log('ВЫВОД ДАННЫХ');
 
     let totalHoursForDay = [];
+
+    // Объявляем переменные на верхнем уровне функции или цикла
+    let weekDevelopers, weekProjects, weekPaidHoursPlan;
+
+    let paidHoursDailyReportTitle = `Платные часы (${isLastWeek ? 'последняя неделя' : 'текущая неделя'})`;
+    let paidHoursDailyReportByDate = {};
+    let paidHoursDailyReportYesterdayNoHours = [];
+    let paidHoursDailyReportYesterdayLessHours = [];
+    let totalPaidHours = 0;
+    let totalPlannedPaidHours = 0;
+    let totalAllHours = 0;
+    let lastWorkingDay = null;
+
+
+    if (weeks === 1) {
+        // Если всего одна неделя, используем общие переменные developers и projects
+        weekDevelopers = developers;
+        weekProjects = projects;
+        weekPaidHoursPlan = paidHoursPlan;
+    }
+
 
     for (let developer of developers) {
         if(!developer.name) continue;
@@ -2170,8 +2442,6 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
         if(allAllocationData[developerName] && allAllocationData[developerName].list) allocationList = allAllocationData[developerName].list;
 
         let developerAllocationData = allAllocationData[developerName];
-
-
 
         // надо построить projectHours из объекта planDevelopers
         let projectHours = '';
@@ -2203,31 +2473,16 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
 
         //let startDate = getLastMonday(weeks); // получаем дату понедельника для самой старшей недели
 
-        let currentDay = 0; // счётчик текущего дня в рамках общего списка дней
-        let weekNumber = weeks; // начинаем с самой старшей недели
-
-        // Объявляем переменные на верхнем уровне функции или цикла
-        let weekDevelopers, weekProjects;
-
-        if (weeks === 1) {
-            // Если всего одна неделя, используем общие переменные developers и projects
-            weekDevelopers = developers;
-            weekProjects = projects;
-        }
-
-
-
-
         // Подсчет weeklyHours
         let weeklyHoursByWeekNumber = {}; // Словарь для хранения часов по номерам недель
         let currentWeekNumber = weeks; // Начинаем с самой поздней недели и идем назад
-        let daysCounter = 0;
+        let dayNumber = 0;  // счётчик текущего дня недели
 
         // Предварительный проход
         dateRange.forEach((date, index) => {
-            if (daysCounter === 7) {
+            if (dayNumber === 7) {
                 currentWeekNumber--;
-                daysCounter = 0; // Сброс счетчика дней при переходе на новую неделю
+                dayNumber = 0; // Сброс счетчика дней при переходе на новую неделю
             }
 
             let dayHours = 0;
@@ -2251,99 +2506,69 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
             }
             weeklyHoursByWeekNumber[currentWeekNumber] += dayHours;
 
-            daysCounter++;
-            if (index === dateRange.length - 1 && daysCounter < 7) { // Обработка последней, возможно неполной, недели
+            dayNumber++;
+            if (index === dateRange.length - 1 && dayNumber < 7) { // Обработка последней, возможно неполной, недели
                 currentWeekNumber--;
             }
         });
 
+        dayNumber = 0;
+        let weekNumber = weeks; // начинаем с самой старшей недели
 
-
-
-
-
-
-        dateRange.forEach(date => {
-            currentDay++;
-
-            if (currentDay % 7 === 0 && currentDay !== 0) {
-                // Каждые 7 дней уменьшаем weekNumber, если это не первый день списка
-                weekNumber--;
-            }
+        dateRange.forEach((date, index) => {
+            dayNumber++;
 
             let weeklyHours = weeklyHoursByWeekNumber[weekNumber];
 
-            if (weeks > 1) {
-                // Если недель больше одной, выбираем данные из weekPlans для текущей недели
-                let planData = weekPlans[weekNumber] || { developers: [], projects: [] };
-                weekDevelopers = planData.developers;
-                weekProjects = planData.projects;
+            // Создаем уведомление для дня
+            let formattedDate = formatDate(date);
+            let dailyTotalHours = totalHoursForDay[formattedDate] || 0;
+
+            if (!paidHoursDailyReportByDate[formattedDate]) {
+                paidHoursDailyReportByDate[formattedDate] = 0;
             }
 
-            // let dailyData = {};
-            // if (!totalHoursForDay[formatDate(date)]) totalHoursForDay[formatDate(date)] = 0;
-            // if(allDailyData[formatDate(date)] && allDailyData[formatDate(date)][developerName]) dailyData = allDailyData[formatDate(date)][developerName];
-            // let dailyList = '';
-            // let dailyHours = 0;
-            // for (let project of projects) {
-            //     if (dailyData && dailyData.projects && dailyData.projects[project.projectName]) {
-            //         dailyHours += dailyData.projects[project.projectName];
-            //         totalDeveloperPaidHours += dailyData.projects[project.projectName];
-            //     }
-            // }
-
-            // if (dailyData && dailyData.totalHours) {
-            //     dailyList = dailyData.list;
-            //     totalHoursForDay[formatDate(date)] += Number(dailyData.totalHours);
-            //     totalDeveloperHours += Number(dailyData.totalHours);
-            // }
-
-            // reportSheet.getRange(row, column).setValue(dailyHours).setVerticalAlignment("top").setWrap(true).setFontSize(8).setNote(dailyList);
-            // if (currentDay === 7) {
-            //     reportSheet.getRange(row, column).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
-            //     currentDay = 0;
-            // }
 
 
+            if (weeks > 1) {
+                // Если недель больше одной, выбираем данные из weekPlans для текущей недели
+                let planData = weekPlans[weekNumber] || { developers: [], projects: [], additionalData: [] };
+                weekDevelopers = planData.developers;
+                weekProjects = planData.projects;
 
-            // Предположим, что totalHoursPerDeveloper - это массив с общим количеством часов каждого разработчика
-            // let totalHoursPerDeveloper = weekDevelopers.map(developer => {
-            //     return Object.values(developer.projects).reduce((sum, hours) => sum + hours, 0);
-            // });
-
+                // Проверка наличия additionalData
+                if (planData.additionalData && planData.additionalData.length > 0) {
+                    weekPaidHoursPlan = planData.additionalData[0].paidHoursPlan || 0;
+                    let weekWorkingHours = planData.additionalData[0].workingHours || 0;
+                    let workingDays = weekWorkingHours / 8;
+                } else {
+                    weekPaidHoursPlan = 0;
+                    let workingDays = 0;
+                }
+            } else {
+                let workingDays = workingHours / 8;
+            }
 
             // Массив для хранения общего количества часов всех разработчиков
             let totalHoursPerDeveloper = [];
-            //let devProjectHoursTotal = 0;
-
-
-
-            // надо построить projectHours из объекта planDevelopers
             let projectHoursTotal = 0;
             let projectNames = [];
-
+            let projectNamesWithFree = [];
 
             if(weekDevelopers && weekDevelopers.length>0) {
-
-
                 for (let planDeveloper of weekDevelopers) {
                     let projectHoursTotal = 0; // Общее количество часов для конкретного разработчика
 
                     for (let project in planDeveloper.projects) {
                         projectHoursTotal += planDeveloper.projects[project]; // Суммируем часы по проектам
                     }
-
                     // Добавляем общее количество часов в массив
                     totalHoursPerDeveloper.push(projectHoursTotal);
-
-
-
                 }
                 for (let planDeveloper of weekDevelopers) {
                     if (planDeveloper.name === developerName) {
-
-                        //let projectHours = '';
                         for (let project in planDeveloper.projects) {
+                            projectNamesWithFree.push(project);
                             let projectObject = projects.find(proj => proj.projectName === project);
                             if (!projectObject) continue;
                             else pmInitials = projectObject.pmInitials;
@@ -2358,24 +2583,25 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
             }
 
 
+
             let commonTotalHours = findMode(totalHoursPerDeveloper);
-
-            // Предполагаем, что каждый рабочий день длится 8 часов
-            let workingDays = commonTotalHours.map(hours => hours / 8);
-
-
-
-
-
+            let workingDays = commonTotalHours.map(hours => hours / 8);  // Предполагаем, что каждый рабочий день длится 8 часов
             let dailyData = {};
+            let dailyList = '';
+            let dailyHours = 0;
+            let isWorkingDay = isWorkDay(date, allDailyData);
+
+            if (isWorkingDay) lastWorkingDay = date;
+
             if (!totalHoursForDay[formatDate(date)]) totalHoursForDay[formatDate(date)] = 0;
             if (allDailyData[formatDate(date)] && allDailyData[formatDate(date)][developerName]) {
                 dailyData = allDailyData[formatDate(date)][developerName];
             }
-            let dailyList = '';
-            let dailyHours = 0;
 
-            if(weekProjects && weekProjects.length>0) {
+
+            //if(developerName === 'Сотников Геннадий') console.log(formatDate(date), dailyData, weekProjects.length);
+
+            if (weekProjects && weekProjects.length > 0) {
                 // Проходим по проектам текущей недели, не глобальным
                 for (let project of weekProjects) {
                     if (dailyData && dailyData.projects && dailyData.projects[project.projectName]) {
@@ -2392,48 +2618,57 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
             }
 
             reportSheet.getRange(row, column).setValue(dailyHours).setVerticalAlignment("top").setWrap(true).setFontSize(8).setNote(dailyList);
-            if (currentDay === 7) {
+            if (dayNumber === 7) {
                 reportSheet.getRange(row, column).setBorder(false, false, false, true, false, false, "black", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
                 currentDay = 0;
             }
-
-            const darkRed = "#cb4335"; // Более темный красный цвет
-            const lightRed = "#f4c7c3"; // Светлый красный цвет
-            const lightYellow = "#ffffe0"; // Светло-желтый цвет
 
             // Проверяем, присутствуют ли в массиве проекты помимо "vacation"
             const hasVacation = projectNames.some(project => project === "vacation");
 
             if (!dailyData.list && dailyHours === 0) {
-                if (!hasVacation && allDailyData[formatDate(date)] && checkNegativeDeviationWeek(projectHoursTotal, weeklyHours) && Object.keys(allDailyData[formatDate(date)]).length>20 && projectNames && projectNames.length>0) {
+                if (!hasVacation && allDailyData[formatDate(date)] && Object.keys(allDailyData[formatDate(date)]).length>20 && projectNamesWithFree && projectNamesWithFree.length>0 && projectHoursTotal && projectHoursTotal >= 20) {
+                    if(isWorkingDay) {
+                        addNoHoursNotification(date, developerName, 'Please put the hours for ' + formatDate(date), Object.keys(allDailyData[formatDate(date)]).length>20);
+                        paidHoursDailyReportYesterdayNoHours.push({ developer: developer.name, hours: dailyHours, date: date });
+                    }
                     // Применяем более темный красный цвет, если есть проекты помимо "vacation"
                     reportSheet.getRange(row, column).setBackground(darkRed);
                 } else {
-                    // Применяем светлый красный цвет, если в списке только "vacation" и в других случаях
+                    // Применяем светлый красный цвет, если в списке только "vacation" и в других случаях (выходные дни)
                     reportSheet.getRange(row, column).setBackground(lightRed);
                 }
             } else if (checkNegativeDeviation(projectHoursTotal, dailyHours, workingDays) && checkNegativeDeviationWeek(projectHoursTotal, weeklyHours)) {
                 // Применяем светло-желтый цвет, если есть отклонение более 25%
+                if(isWorkingDay) paidHoursDailyReportYesterdayLessHours.push({ developer: developer.name, hours: dailyHours, date: date });
                 reportSheet.getRange(row, column).setBackground(lightYellow);
             }
 
+            paidHoursDailyReportByDate[formattedDate] += dailyHours;
+            totalPlannedPaidHours = weekPaidHoursPlan;
 
-            // if (!dailyData.list && dailyHours === 0) reportSheet.getRange(row, column).setBackground("#f4c7c3");
-            // else if (checkDeviation(projectHoursTotal,dailyHours)) reportSheet.getRange(row, column).setBackground("#ffffe0");
+
+
+
+            if (dayNumber === 7) {
+                dayNumber = 0;
+                weekNumber--;
+            }
+
             column++;
         });
+
+
+        totalAllHours += totalDeveloperHours;
+        totalPaidHours += totalDeveloperPaidHours;
 
         let columnPlanHours = column;
         let columnFactHours = column+1;
         let columnDiffHours = column+2;
-
-        column = column+3;
-
-
-
         let planHoursTotal = 0;
         let factHoursTotal = 0;
 
+        column = column+3;
 
         for (let project of projects) {
             //let dataRow = [];
@@ -2449,6 +2684,8 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
                 factHours = developerAllocationData.projects[project.projectName] || '';
             }
 
+
+            // UNCOMMENT TO DISPLAY PROJETS
             // dataRow.push({
             //     value: planHours,
             //     verticalAlignment: "middle",
@@ -2487,6 +2724,9 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
             // range.setFontSizes([dataRow.map(cell => cell.fontSize)]);
             // range.setVerticalAlignments([dataRow.map(cell => cell.verticalAlignment)]);
             // range.setHorizontalAlignments([dataRow.map(cell => cell.horizontalAlignment)]);
+
+            // UNCOMMENT TO DISPLAY PROJETS
+
 
             // Skip an empty column
             reportSheet.getRange(6, column + 2).setBackground("#ffffff");
@@ -2598,6 +2838,98 @@ function generateWeekReport(isLastWeek = false, weeks = 1) {
     const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
     reportSheet.getRange("B6").setValue(`Generated at ${currentTime} (Tbilisi, Georgia Timezone)`);
 
+    if (weeks === 1) {
+        totalAllHours = totalAllHours.toFixed(2);
+        totalPaidHours = totalPaidHours.toFixed(2);
+
+        paidHoursDailyReportYesterdayNoHours = paidHoursDailyReportYesterdayNoHours.filter(item => item.date === lastWorkingDay);
+        paidHoursDailyReportYesterdayLessHours = paidHoursDailyReportYesterdayLessHours.filter(item => item.date === lastWorkingDay);
+
+        let paidHoursDailyReportYesterdayLessHoursFiltered = paidHoursDailyReportYesterdayLessHours.filter(item => {
+            // Проверяем, начинается ли имя разработчика с одного из имен из списка pmList
+            return !pmList.some(pmName => item.developer.startsWith(pmName));
+        });
+
+        // Формирование текста отчета
+        let notificationText = `*${paidHoursDailyReportTitle}*\nПлан ${mondayString}-${sundayString} - ${plannedPaidHours}\n`;
+
+        const today = new Date();
+        const timeZone = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+        const todayFormatted = Utilities.formatDate(today, timeZone, 'yyyy-MM-dd');
+
+        Object.entries(paidHoursDailyReportByDate).forEach(([date, hours]) => {
+            // Skip today's date and any future dates
+            if (new Date(date) >= new Date(todayFormatted)) {
+                return;
+            }
+            notificationText += `${date} - ${hours.toFixed(2)}\n`;
+        });
+
+        // Добавление заголовков для списков, если они не пустые
+        if (paidHoursDailyReportYesterdayNoHours.length > 0) {
+            notificationText += `\n*Нет часов*\n`;
+            paidHoursDailyReportYesterdayNoHours.forEach(item => {
+                notificationText += `• _${item.developer}_\t${item.hours}\n`;
+            });
+        }
+
+        if (paidHoursDailyReportYesterdayLessHoursFiltered.length > 0) {
+            notificationText += `\n*Мало платных*\n`;
+            paidHoursDailyReportYesterdayLessHoursFiltered.forEach(item => {
+                notificationText += `• _${item.developer}_\t${item.hours}\n`;
+            });
+        }
+
+        const percentageCompleted = ((totalPaidHours / totalPlannedPaidHours) * 100).toFixed(2);
+        const percentageTotal = ((totalPaidHours / totalAllHours) * 100).toFixed(2);
+
+        if(isLastWeek) {
+            // Формирование итогового текста отчета
+            notificationText += `\n*За последнюю неделю*\nПлатных ${totalPaidHours} (по плану ${totalPlannedPaidHours} - выполнен на ${percentageCompleted}%)\nВсего ${totalAllHours}\nПроцент ${percentageTotal}%`;
+        }
+
+        const notificationsSheet = ss.getSheetByName('PaidHoursNotifications') || ss.insertSheet('PaidHoursNotifications');
+        const formattedCurrentTime = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'dd/MM/yyyy HH:mm:ss');
+
+        // Проверка текущего дня недели
+        const dayOfWeek = new Date().getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+        if ((isLastWeek && dayOfWeek === 1) || (!isLastWeek && dayOfWeek >= 2 && dayOfWeek <= 5)) {
+            // Проверка и обновление уведомлений за последний рабочий день
+            if (paidHoursDailyReportYesterdayNoHours.length > 0 || paidHoursDailyReportYesterdayLessHours.length > 0) {
+                updateOrAddPaidHoursNotification(
+                    notificationsSheet,
+                    lastWorkingDay,
+                    'new',
+                    formattedCurrentTime,
+                    notificationText
+                );
+            }
+        }
+    }
+
+
+}
+
+
+function isWorkDay(date, allDailyData) {
+    let formattedDate = formatDate(date);
+    if (allDailyData[formattedDate]) {
+        return Object.keys(allDailyData[formattedDate]).length > 20;
+    }
+    return false;
+}
+
+function getWeekNumberForDate(date, startDate, totalWeeks) {
+    let diffInDays = Math.floor((date - startDate) / (1000 * 60 * 60 * 24));
+    return totalWeeks - Math.floor(diffInDays / 7);
+}
+
+function getWorkingDaysInWeek(developers) {
+    let totalHours = developers.reduce((sum, developer) => {
+        return sum + Object.values(developer.projects).reduce((projectSum, hours) => projectSum + hours, 0);
+    }, 0);
+    return totalHours / (developers.length * 8);
 }
 
 
@@ -2790,9 +3122,6 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
     if (isLastWeek) {
         if (weeks > 1) {
             scrumSheetName = `Scrum files 2024`;
-            let startDay = getLastMonday(weeks);
-            let endDay = getLastSunday(1);
-            console.log(startDay + ' ' + endDay);
         } else {
             scrumSheetName = `Scrum files for last week`;
         }
@@ -2838,7 +3167,7 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
         if (!row) return null;
         if (!(date && date instanceof Date)) return null;
 
-        const rowDateStr = Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');  // Форматирование даты для ключа словаря
+        const rowDateStr = formatDate(date);
 
         if (!dailyData[rowDateStr]) {
             dailyData[rowDateStr] = {}; // Инициализация словаря для этой даты
@@ -2877,9 +3206,9 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
 
 
 
-            //Logger.log(developerFull.name + ' ' + project + ' ' + roundedHours);
+            //// Logger.log(developerFull.name + ' ' + project + ' ' + roundedHours);
         } else {
-            Logger.log(developerShort + " отсутствует в списке");
+            // Logger.log(developerShort + " отсутствует в списке");
 
             let projectData = projects.find(proj => proj.projectName === project);
 
@@ -2935,7 +3264,7 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
         let allocationList = new Set();
         let developerData = developers.find(dev => dev.name === developerName);
         if(!developerData) {
-            console.log(developerName + ' проблемный проблемный проблемный проблемный проблемный');
+            //console.log(developerName + ' проблемный проблемный проблемный проблемный проблемный');
             continue;
         }
         let developerProjects = developerData.projects;
@@ -3051,11 +3380,11 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
             //     if (date.getDate() < startDay || date.getDate() > endDay) return null;
             // }
 
-            if (isPaidHours) {
-                if (type !== 'DEV' && type !== 'PM' && project !== 'vacation') {
-                    return null;
-                }
+            //if (isPaidHours) {
+            if (type !== 'DEV' && type !== 'PM' && project !== 'vacation') {
+                return null;
             }
+            //}
 
             const rowDateStr = formatDate(date); // Форматирование даты для ключа словаря
             if (!dailyData[rowDateStr]) {
@@ -3092,9 +3421,9 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
                     dailyData[rowDateStr][developerFull.name].projects[project] = 0;
                 }
                 dailyData[rowDateStr][developerFull.name].projects[project] += roundedHours;
-                // Logger.log(developerFull.name + ' ' + project + ' ' + roundedHours);
+                // // Logger.log(developerFull.name + ' ' + project + ' ' + roundedHours);
             } else {
-                Logger.log(developerShort + " отсутствует в списке");
+                // Logger.log(developerShort + " отсутствует в списке");
                 if (!allocationData[developerShort]) {
                     allocationData[developerShort] = {projects: {}, list: '', pmInitials: {}};
                 }
@@ -3133,26 +3462,10 @@ function getAllocationData(developers, projects, isLastWeek = false, isPaidHours
 
         restoreLists(allocationData, dailyData, savedLists);
     }
-    return {allocationData, dailyData};
+
+    return {allocationData, dailyData, scrumData};
 }
 
-function getWeekNumber(date) {
-    // Функция для получения номера недели в году
-    // https://stackoverflow.com/questions/6117814/get-week-of-year-in-javascript-like-in-php
-    let onejan = new Date(date.getFullYear(), 0, 1);
-    return Math.ceil((((date - onejan) / 86400000) + onejan.getDay() + 1) / 7);
-}
-
-function mergeData(allData, weekData) {
-    // Объединение данных из weekData в allData
-    for (let key in weekData) {
-        if (allData[key]) {
-            // Объединение данных, например, через Object.assign или другой подход
-        } else {
-            allData[key] = weekData[key];
-        }
-    }
-}
 
 
 // Функция для сохранения списков
@@ -3205,14 +3518,27 @@ function restoreLists(allocationData, dailyData, savedLists) {
     }
 }
 
+
 function formatDate(date) {
-    // Функция для форматирования даты в строку 'YYYY-MM-DD'
-    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // месяцы с 0, поэтому добавляем 1
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
+
+// function formatDate(date) {
+//     // Функция для форматирования даты в строку 'YYYY-MM-DD'
+//     return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+// }
+
 function formatDateForHeader(date) {
-    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd MMM');
+    const day = date.getDate().toString().padStart(2, '0');
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = monthNames[date.getMonth()];
+    return `${day} ${month}`;
 }
+
 
 function getDateRange(startDate, endDate) {
     let dateArray = [];
@@ -3253,8 +3579,6 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
         const weekMondayString = Utilities.formatDate(weekMondayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
 
         const weekSundayString = Utilities.formatDate(weekSundayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
-        console.log(weekSundayString);
-
         let workloadSheetName = weekMondayDate.getMonth() === weekSundayDate.getMonth() ?
             `${weekMondayString.split(" ")[0]}-${weekSundayString.split(" ")[0]} ${weekSundayString.split(" ")[1]}` :
             `${weekMondayString}-${weekSundayString}`;
@@ -3263,8 +3587,6 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
             workloadSheetNameNoPlan = workloadSheetName;
             workloadSheetName = workloadSheetName+' (plan)';
         }
-
-        console.log("getDevelopers - Opening workload sheet " + workloadSheetName);
 
         workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
         if (!workloadSheet) {
@@ -3293,7 +3615,7 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
         let developerLocation = workloadData[i][0];
         developerName = developerName.toString().split("(")[0].trim();
 
-        Logger.log(developerName);
+        // Logger.log(developerName);
 
         const projectHours = getHoursByNameAndProject(workloadData, developerName, allocationData, isPaidHours = false);
 
@@ -3301,7 +3623,7 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
         if (developerName === 'total') {
             if (!isPaidHours) {  //  && !isLastWeek
                 isReserve1 = true;
-                console.log('Reserve 1 is set');
+                //console.log('Reserve 1 is set');
             } else {
                 break;
             }
@@ -3309,19 +3631,19 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
 
         // If we are in the "Запас" section and the developer name is empty, stop the loop
         if (isReserve1 && isReserve2 && !developerName) {
-            console.log('Reserve1 and Reserve 2');
+            //console.log('Reserve1 and Reserve 2');
             break;
         }
 
         // If the developer name is "Запас", continue to the next iteration
         if (developerLocation === 'Запас' && isReserve1) {
             isReserve2 = true;
-            console.log('Reserve 2 is set');
+            //console.log('Reserve 2 is set');
             continue;
         }
 
         if (isReserve1 && !isReserve2) {
-            console.log('Reserve 1');
+            //console.log('Reserve 1');
             continue;
         }
 
@@ -3376,7 +3698,7 @@ function getDevelopers(workloadSheet, all, allocationData, dailyData, isLastWeek
 
 function getProjects(workloadSheet, projectNameFilter, isLastWeek = false, isPaidHours = false, weekNumber = 0, workloadSpreadsheet = null) {
     let workloadSheetName = '';
-    if(!workloadSheet) {
+    if (!workloadSheet) {
         const ss = SpreadsheetApp.getActiveSpreadsheet();
         const workloadSheetId = "1N65NUtqBA855C6K8swmeFQ9HbvIZU4fq4EnhYzvNV7Q";
         if (!workloadSpreadsheet) workloadSpreadsheet = SpreadsheetApp.openById(workloadSheetId);
@@ -3388,41 +3710,33 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false, isPai
             weekMondayDate = getLastMonday();
             weekSundayDate = getLastSunday();
         } else if (weekNumber < 0) {
-            // Для прошлых недель: использовать отрицательные значения weekNumber
             weekMondayDate = getLastMonday(Math.abs(weekNumber));
             weekSundayDate = getLastSunday(Math.abs(weekNumber));
         } else if (weekNumber > 0) {
-            // Для будущих недель: использовать положительные значения weekNumber
             weekMondayDate = getNextMonday(weekNumber);
             weekSundayDate = getNextSunday(weekNumber);
         } else {
-            // Для текущей недели
             weekMondayDate = getCurrentMonday();
             weekSundayDate = getCurrentSunday();
         }
 
         const weekMondayString = Utilities.formatDate(weekMondayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
-
         const weekSundayString = Utilities.formatDate(weekSundayDate, ss.getSpreadsheetTimeZone(), 'dd MMM').toLowerCase();
-        console.log(weekSundayString);
 
         workloadSheetName = weekMondayDate.getMonth() === weekSundayDate.getMonth() ?
             `${weekMondayString.split(" ")[0]}-${weekSundayString.split(" ")[0]} ${weekSundayString.split(" ")[1]}` :
             `${weekMondayString}-${weekSundayString}`;
 
-        if (weekNumber>0) {
+        if (weekNumber > 0) {
             workloadSheetNameNoPlan = workloadSheetName;
-            workloadSheetName = workloadSheetName+' (plan)';
+            workloadSheetName = workloadSheetName + ' (plan)';
         }
-
-        console.log("getDevelopers - Opening workload sheet " + workloadSheetName);
 
         workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetName);
         if (!workloadSheet) {
             workloadSheet = workloadSpreadsheet.getSheetByName(workloadSheetNameNoPlan);
             if (!workloadSheet) {
-                Logger.log(`Cannot find sheet "${workloadSheetName}" in the workload spreadsheet.`);
-                return [];
+                return { projects: [], workloadSheetName: '', additionalData: [] };
             }
         }
     }
@@ -3432,42 +3746,29 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false, isPai
 
     let workloadData = workloadSheet.getDataRange().getValues();
 
-    // Retrieve developers from the 4th column
     developers = workloadData.map(row => row[3]);
 
-    // Iterate through the columns of the workloadData
     outer: for (let j = 1; j < workloadData[0].length; j++) {
-        // Get the project's name, which is assumed to be in the 5th row
         let projectName = workloadData[4][j].trim() || "(noname)";
-        console.log('Project Name:', projectName);
 
         if (isPaidHours && isPaidHoursProject(projectName)) continue;
 
-        // Get the PM's initials, which are assumed to be in the 1st row
         let pmInitials = workloadData[0][j].trim();
-        console.log('PM Initials:', pmInitials);
 
-        // If PM initials are not exactly 2 characters long or not Russian letters, skip this iteration
         let regex = /[а-яё]{2}/i;
         if (pmInitials === undefined || pmInitials === null || pmInitials.length !== 2 || !regex.test(pmInitials)) {
             continue outer;
         }
 
-        // If a projectNameFilter is provided and doesn't match the current project, skip this iteration
         if (projectNameFilter && projectName !== projectNameFilter) {
             continue outer;
         }
 
-        // Create a new project object
-        let project = {pmInitials, projectName, projectHours: 0, developers: {}};
+        let project = { pmInitials, projectName, projectHours: 0, developers: {} };
 
         for (let i = 5; i < workloadData.length; i++) {
             let hours = workloadData[i][j] || 0;
             let developerName = developers[i];
-
-            // if (developerName === 'total') {
-            //     break;
-            // }
 
             developerName = developerName.split("(")[0].trim();
 
@@ -3480,8 +3781,35 @@ function getProjects(workloadSheet, projectNameFilter, isLastWeek = false, isPai
         projects.push(project);
     }
 
-    Logger.log(projects);
-    return {projects, workloadSheetName};
+    let additionalData = extractAdditionalData(workloadSheet);
+
+    // Добавляем данные из ячейки A3 в additionalData
+    let workingHours = workloadSheet.getRange("A3").getValue();
+    additionalData.push({ workingHours: workingHours });
+
+    return { projects, workloadSheetName, additionalData };
+}
+
+
+function extractAdditionalData(sheet) {
+    let dataRange = sheet.getDataRange().getValues();
+    let additionalData = [];
+
+    for (let i = 0; i < dataRange.length; i++) {
+        let row = dataRange[i];
+        for (let j = 0; j < row.length; j++) {
+            if (row[j] === "часы без отпуска и без бесплатных") {
+                let valueColumnIndex = j + 1;
+                if (valueColumnIndex < row.length) {
+                    let value = row[valueColumnIndex];
+                    if (typeof value === 'number') {
+                        additionalData.push(value);
+                    }
+                }
+            }
+        }
+    }
+    return additionalData;
 }
 
 
@@ -3548,7 +3876,7 @@ function getScrumFilesData(fromDate, toDate) {
     const scrumFilesUrls = scrumFilesSheet.getRange('B3:B' + scrumFilesSheet.getLastRow()).getValues().flat();
 
     if(scrumFilesUrls.length == 0) {
-        Logger.log('No matching files found.');
+        // Logger.log('No matching files found.');
         return;
     }
 
@@ -3584,7 +3912,7 @@ function getScrumFilesData(fromDate, toDate) {
         }
     }
 
-    Logger.log(JSON.stringify(data)); // Log the entire data object
+    // Logger.log(JSON.stringify(data)); // Log the entire data object
     return data;
 }
 
@@ -3722,7 +4050,7 @@ function gatherScrumFilesDataFromFolder(folderId) {
         // const monthNames = ["", "", "", "", "", "", "", "", "", "Октябрь", "", ""];
         const monthSheetsToProcess = monthNames.filter(monthName => externalFile.getSheetByName(monthName));
 
-        Logger.log(`Processing file ${fileName}.`);
+        // Logger.log(`Processing file ${fileName}.`);
         for (let monthSheetName of monthSheetsToProcess) {
             const monthIndex = monthNames.indexOf(monthSheetName) + 1; // Get the month number
             const externalSheet = externalFile.getSheetByName(monthSheetName);
@@ -3730,7 +4058,7 @@ function gatherScrumFilesDataFromFolder(folderId) {
             const monthSheetData = externalSheet.getRange(2, 1, lastRow - 1, 5).getValues();
             const preparedData = []; // To collect data for a month
 
-            Logger.log(`Processing sheet ${monthSheetName} in file ${fileName}.`);
+            // Logger.log(`Processing sheet ${monthSheetName} in file ${fileName}.`);
             monthSheetData.forEach(function(rowData) {
                 if (rowData[0] && rowData[1] && rowData[2] && rowData[4]) {
                     const dateTime = new Date(rowData[0]);
@@ -3744,14 +4072,14 @@ function gatherScrumFilesDataFromFolder(folderId) {
                         const hoursScrum = rowData[4];
                         preparedData.push([fileName, dateScrum, typeScrum, projectScrum, hoursScrum]);
                     } else {
-                        Logger.log(`Data in row does not belong to the year and month. Skipping data.`);
+                        // Logger.log(`Data in row does not belong to the year and month. Skipping data.`);
                     }
                 }
 
             });
             // Write all data for the month at once
             if (preparedData.length > 0) {
-                Logger.log('TOTAL Rows in list ' + preparedData.length);
+                // Logger.log('TOTAL Rows in list ' + preparedData.length);
                 const startRow = scrumFilesSheet.getLastRow() + 1; // Get the starting row
                 scrumFilesSheet.getRange(startRow, 1, preparedData.length, headers.length).setValues(preparedData);
             }
@@ -3762,7 +4090,7 @@ function gatherScrumFilesDataFromFolder(folderId) {
     const currentTime = new Date().toLocaleString("en-GB", {timeZone: "Asia/Tbilisi"});
     scrumFilesSheet.getRange("A1").setValue(`Data gathered at ${currentTime} (Tbilisi, Georgia Timezone)`);
 
-    Logger.log(`Data gathering finished for ${sheetName}.`);
+    // Logger.log(`Data gathering finished for ${sheetName}.`);
 }
 
 function collectDeveloperVacationData() {
@@ -3778,7 +4106,7 @@ function collectDeveloperVacationData() {
     // Получение листа с текущим месяцем
     var currentMonthSheet = sourceSpreadsheet.getSheetByName(currentMonth + ' ' + currentYear);
     if (!currentMonthSheet) {
-        Logger.log('Лист с названием текущего месяца не найден.');
+        // Logger.log('Лист с названием текущего месяца не найден.');
         return;
     }
 
@@ -3839,7 +4167,7 @@ function collectDeveloperVacationData() {
         // Запись отсортированных данных с третьей строки
         destinationSheet.getRange(3, 1, filteredData.length, 2).setValues(filteredData);
     } else {
-        Logger.log('Столбец "ФИО" или "vacation, remainder" не найден на листе текущего месяца.');
+        // Logger.log('Столбец "ФИО" или "vacation, remainder" не найден на листе текущего месяца.');
         return HtmlService.createHtmlOutput("Столбец 'ФИО' или 'vacation, remainder' не найден на листе текущего месяца.");
     }
 }
@@ -3859,7 +4187,7 @@ function collectCandidatesData() {
     var developersValues = developersRange.getValues().map(row => row[1]).slice(1);
 
     var developersNames = developersValues.flat();  // Получаем список разработчиков
-    Logger.log("Developers Names: " + developersNames);
+    // Logger.log("Developers Names: " + developersNames);
 
     var sourceSheet = SpreadsheetApp.openById(sourceDocId).getSheetByName(sourceSheetName);
     var sourceRange = sourceSheet.getDataRange();
@@ -3880,7 +4208,7 @@ function collectCandidatesData() {
     headers.push('ID');
     destSheet.getRange('A2:' + columnToLetter(headers.length) + '2').setValues([headers]);
 
-    Logger.log("Headers written to destination sheet");
+    // Logger.log("Headers written to destination sheet");
 
     // Записываем данные кандидатов
     for (var sourceRowIndex = 1; sourceRowIndex < sourceValues.length; sourceRowIndex++) {
@@ -3891,7 +4219,7 @@ function collectCandidatesData() {
         // Ожидает Решения Резерв
 
         if (developersNames.includes(name) && (status === 'Принят' || status === 'Ожидает Интервью у клиента' || status === 'Ожидает Решения' || status === 'Резерв' || status === 'Пауза / Думает' || status === 'Пауза / Резерв')) {
-            Logger.log("Found matching candidate: " + name);
+            // Logger.log("Found matching candidate: " + name);
 
             // Добавляем ID в конец строки
             row.push(sourceRowIndex + 1);
@@ -3903,7 +4231,7 @@ function collectCandidatesData() {
                 if (linkUrlL) {
                     row[headers.indexOf('L')] = linkUrlL;
                 } else {
-                    Logger.log("Failed to get link from column L");
+                    // Logger.log("Failed to get link from column L");
                 }
             }
 
@@ -3913,7 +4241,7 @@ function collectCandidatesData() {
                 if (linkUrlAJ) {
                     row[headers.indexOf('AJ')] = linkUrlAJ;
                 } else {
-                    Logger.log("Failed to get link from column AJ");
+                    // Logger.log("Failed to get link from column AJ");
                 }
             }
 
@@ -3927,7 +4255,7 @@ function collectCandidatesData() {
     var now = Utilities.formatDate(new Date(), 'Asia/Tbilisi', 'dd/MM/yyyy, HH:mm:ss');
     destSheet.getRange('A1').setValue('Generated at ' + now + ' (Tbilisi, Georgia Timezone)');
 
-    Logger.log('Process completed');
+    // Logger.log('Process completed');
 }
 
 function collectDeveloperCvData() {
@@ -3948,7 +4276,7 @@ function collectDeveloperCvData() {
     var headers = ['Имя папки', 'ID папки', 'Имя файла', 'ID файла', 'Дата последнего изменения файла', 'CV link'];
     destSheet.getRange('A2:' + columnToLetter(headers.length) + '2').setValues([headers]);
 
-    Logger.log("Headers written to destination sheet");
+    // Logger.log("Headers written to destination sheet");
 
     folderIds.forEach(function(folderId) {
         var folder = DriveApp.getFolderById(folderId);
@@ -3956,14 +4284,14 @@ function collectDeveloperCvData() {
         while (subFolders.hasNext()) {
             var subFolder = subFolders.next();
             var folderName = subFolder.getName();
-            Logger.log('Processing folder: ' + folderName);
+            // Logger.log('Processing folder: ' + folderName);
 
             // Проверяем, что имя папки соответствует русскому или английскому имени разработчика
             // if (englishNames.includes(folderName) || russianNames.includes(folderName)) {
             var files = subFolder.getFiles();
             while (files.hasNext()) {
                 var file = files.next();
-                Logger.log('Processing file: ' + file.getName());
+                // Logger.log('Processing file: ' + file.getName());
 
                 var row = [
                     subFolder.getName(),
@@ -3977,7 +4305,7 @@ function collectDeveloperCvData() {
                 destSheet.appendRow(row);
             }
             // } else {
-            //     Logger.log('Folder name does not match any developer names: ' + folderName);
+            //     // Logger.log('Folder name does not match any developer names: ' + folderName);
             // }
         }
     });
@@ -3986,7 +4314,7 @@ function collectDeveloperCvData() {
     var now = Utilities.formatDate(new Date(), 'Asia/Tbilisi', 'dd/MM/yyyy, HH:mm:ss');
     destSheet.getRange('A1').setValue('Generated at ' + now + ' (Tbilisi, Georgia Timezone)');
 
-    Logger.log('Process completed');
+    // Logger.log('Process completed');
 }
 
 
@@ -4015,7 +4343,7 @@ function collectDeveloperUpworkData() {
     //headers.push('Имя агентства', 'upwork-account');
     destSheet.getRange('A2:' + columnToLetter(headers.length) + '2').setValues([headers]);
 
-    Logger.log("Headers written to destination sheet");
+    // Logger.log("Headers written to destination sheet");
 
     // var agencyName = '';
     for(var i = 1; i < sourceData.length; i++) {
@@ -4036,7 +4364,7 @@ function collectDeveloperUpworkData() {
     var now = Utilities.formatDate(new Date(), 'Asia/Tbilisi', 'dd/MM/yyyy, HH:mm:ss');
     destSheet.getRange('A1').setValue('Generated at ' + now + ' (Tbilisi, Georgia Timezone)');
 
-    Logger.log('Process completed');
+    // Logger.log('Process completed');
 }
 
 
@@ -4374,7 +4702,7 @@ function getWeekPlan() {
 
 
 function updateDeveloperStackData() {
-    Logger.log('Начало обработки файлов');
+    // Logger.log('Начало обработки файлов');
 
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = spreadsheet.getSheetByName('DeveloperStackData');
@@ -4382,10 +4710,10 @@ function updateDeveloperStackData() {
     // Create or clear the 'DeveloperStackData' sheet
     if (sheet == null) {
         sheet = spreadsheet.insertSheet('DeveloperStackData');
-        Logger.log('Лист "DeveloperStackData" создан');
+        // Logger.log('Лист "DeveloperStackData" создан');
     } else {
         sheet.clear();
-        Logger.log('Лист "DeveloperStackData" очищен');
+        // Logger.log('Лист "DeveloperStackData" очищен');
     }
 
     // Fetch data from the existing stack data spreadsheet
@@ -4400,7 +4728,7 @@ function updateDeveloperStackData() {
     sheet.appendRow(['Developer', 'Тип', 'Технология', 'Уровень', 'Желание/Нежелание', 'Стек']); // Headers
     if (data.length > 0) {
         sheet.getRange(3, 1, data.length, 6).setValues(data);
-        Logger.log('Данные успешно записаны на лист "DeveloperStackData"');
+        // Logger.log('Данные успешно записаны на лист "DeveloperStackData"');
     }
 
     // Optionally, call a function to correct data if necessary
@@ -4411,7 +4739,7 @@ function updateDeveloperStackData() {
 
 
 function getDataFromRange(sheet, range, stackType, developerName) {
-    Logger.log('Сбор данных из диапазона: ' + range);
+    // Logger.log('Сбор данных из диапазона: ' + range);
 
     var data = sheet.getRange(range).getValues();
     var output = [];
@@ -4424,12 +4752,12 @@ function getDataFromRange(sheet, range, stackType, developerName) {
         output.push([developerName, ...row, stackType]);
     }
 
-    Logger.log('Данные из диапазона ' + range + ' собраны');
+    // Logger.log('Данные из диапазона ' + range + ' собраны');
     return output;
 }
 
 function correctDataInDeveloperStackData() {
-    Logger.log('Начало корректировки данных');
+    // Logger.log('Начало корректировки данных');
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('DeveloperStackData');
     var data = sheet.getRange(3, 1, sheet.getLastRow(), 6).getValues();
@@ -4439,13 +4767,13 @@ function correctDataInDeveloperStackData() {
     var technologies = [...new Set(data.map(row => row[2].toLowerCase()))];
     //var levels = [...new Set(data.map(row => row[3]))]; // Здесь мы не приводим к нижнему регистру
 
-    Logger.log('Получение уникальных значений для типов, технологий и уровней');
+    // Logger.log('Получение уникальных значений для типов, технологий и уровней');
 
     var typeCorrections = getCorrections(types, data, 1);
     var technologyCorrections = getCorrections(technologies, data, 2, true, 1); // Установить порог схожести в 1 для технологий
     //var levelCorrections = getCorrections(levels, data, 3, false); // Не применяем toLowerCase для уровней
 
-    Logger.log('Корректировка данных');
+    // Logger.log('Корректировка данных');
 
     data.forEach(row => {
         correctedData.push([
@@ -4460,7 +4788,7 @@ function correctDataInDeveloperStackData() {
 
     sheet.getRange(3, 1, sheet.getLastRow(), 6).setValues(correctedData);
 
-    Logger.log('Завершено: данные скорректированы и обновлены на листе');
+    // Logger.log('Завершено: данные скорректированы и обновлены на листе');
 }
 
 // Добавить новый аргумент для определения порога для схожести
@@ -4644,7 +4972,7 @@ function transliterate(name) {
 
 function testGetAllDevelopersUpworkDataFromSheet() {
     var developersUpworkData = getAllDevelopersUpworkDataFromSheet();
-    Logger.log(JSON.stringify(developersUpworkData, null, 2));
+    // Logger.log(JSON.stringify(developersUpworkData, null, 2));
 }
 
 function testDates() {
@@ -4671,7 +4999,7 @@ function testDates() {
         `${mondayString.split(" ")[0]}-${sundayString.split(" ")[0]} ${sundayString.split(" ")[1]}` :
         `${mondayString}-${sundayString}`;
 
-    Logger.log(workloadSheetName + " " + mondayString);
+    // Logger.log(workloadSheetName + " " + mondayString);
 }
 
 // Функция для поиска разработчика на листе DeveloperVacation
@@ -4769,4 +5097,923 @@ function findMode(array) {
 
     return modes;
 }
+
+
+function collectRecentModifiedFiles() {
+    var folderId = '1nS4NWZ51p9OOi_E7Qw4UsvQ5rUdeFD4N';
+    var targetSpreadsheetId = '189YZ_AKtBhVBADGksYIjKQCg8h_ky6Bh5tjEzxUWeXY'; // ID целевого документа
+    var destSheetName = 'CandidatesRecentModifiedFilesData';
+
+    // Открываем целевой документ по ID
+    var activeSpreadsheet = SpreadsheetApp.openById(targetSpreadsheetId);
+    var destSheet = activeSpreadsheet.getSheetByName(destSheetName);
+    if (!destSheet) {
+        destSheet = activeSpreadsheet.insertSheet(destSheetName);
+    }
+
+    // Очищаем лист
+    destSheet.clear();
+
+    // Записываем заголовки
+    var headers = ['Имя файла', 'ID файла', 'Дата последнего изменения файла', 'Ссылка на файл'];
+    destSheet.getRange('A1:' + columnToLetter(headers.length) + '1').setValues([headers]);
+
+    // Получаем файлы из папки
+    var folder = DriveApp.getFolderById(folderId);
+    var files = folder.getFiles();
+    var fileInfo = [];
+
+    while (files.hasNext()) {
+        var file = files.next();
+        fileInfo.push({
+            name: file.getName(),
+            id: file.getId(),
+            lastUpdated: file.getLastUpdated(),
+            link: 'https://drive.google.com/file/d/' + file.getId() + '/view'
+        });
+    }
+
+    // Сортируем файлы по дате последнего изменения
+    fileInfo.sort(function(a, b) {
+        return b.lastUpdated - a.lastUpdated; // Сортировка по убыванию
+    });
+
+    // Ограничиваем список до первых 50 файлов
+    fileInfo = fileInfo.slice(0, 50);
+
+    // Записываем данные в лист
+    fileInfo.forEach(function(file, index) {
+        var row = [file.name, file.id, file.lastUpdated, file.link];
+        destSheet.appendRow(row);
+    });
+
+    // Записываем время генерации данных
+    var now = Utilities.formatDate(new Date(), 'GMT+4', 'dd/MM/yyyy, HH:mm:ss');
+    destSheet.getRange('A' + (fileInfo.length + 2)).setValue('Generated at ' + now + ' (GMT+4 Timezone)');
+
+    // Logger.log('Process completed. Data collected for the most recent 50 modified files.');
+}
+
+
+function columnToLetter(column) {
+    // Преобразуем номер колонки в букву
+    var temp, letter = '';
+    while (column > 0) {
+        temp = (column - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        column = (column - temp - 1) / 26;
+    }
+    return letter;
+}
+
+
+function addNoHoursNotification(date, developer) {
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetName = 'NoHoursNotifications';
+    var sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+
+    const timeZone = spreadsheet.getSpreadsheetTimeZone();
+
+    var headers = ['Date', 'Developer', 'Status', 'CurrentDateTime', 'Notification', 'UpdatedDateTime'];
+    var currentDateTime = new Date();
+    var currentHourTbilisi = currentDateTime.getUTCHours() + 4; // UTC + 4 для Тбилиси
+
+    // Если это не рабочий день или текущее время не в диапазоне 11:00-19:00 по Тбилиси, не добавляем уведомление
+    if (currentHourTbilisi < 11 || currentHourTbilisi >= 22) {
+        Logger.log('Уведомления формируются только в рабочие дни и только с 11:00 до 19:00 по Тбилиси');
+        return;
+    }
+
+    // Форматируем дату для сравнения
+    var formattedDate = formatDate(new Date(date));
+
+    // Если лист новый, добавляем заголовки
+    if (sheet.getLastRow() === 0) {
+        sheet.appendRow(headers);
+    }
+
+    // Получаем все данные из листа, пропуская заголовки
+    var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+    var data = dataRange.getValues();
+
+    // Проверяем существование записи с данной парой "Дата-Разработчик"
+    var exists = false;
+    for (var i = 0; i < data.length; i++) {
+        var row = data[i];
+        var storedDate = formatDate(new Date(row[0]));
+        var storedDeveloper = row[1].trim();
+        if (storedDate === formattedDate && storedDeveloper.toLowerCase() === developer.toLowerCase()) {
+            exists = true;
+            // Обновляем текущее время в колонке 'UpdatedDateTime'
+            sheet.getRange(i + 2, 6).setValue(currentDateTime); // Обновляем конкретную ячейку (колонка 6 - UpdatedDateTime)
+            Logger.log('Запись обновлена для ' + developer + ' на ' + date);
+            return;
+        }
+    }
+
+    // Определение статуса
+    var status = 'new';
+
+    // Получаем имя разработчика (второе слово после пробела)
+    var developerNameParts = developer.trim().split(' ');
+    var developerFirstName = developerNameParts[1] || developerNameParts[0]; // Берем первое слово, если нет второго
+
+    // Формирование текста уведомления
+    var notificationText = `Привет ${developerFirstName} \nпожалуйста залогируй время за ${Utilities.formatDate(new Date(date), timeZone, 'dd/MM')} по ссылке\nhttps://sharpdev.atlassian.net/plugins/servlet/ac/com.kaanha.reports/jira-reports-timesheet-entry \nВ случае болезни просим сообщить своему руководителю проекта, а также Екатерине Хомутовой / Андрею Ларцеву.\nХорошего дня!`;
+
+    // Добавление записи в лист
+    var newRow = [date, developer, status, currentDateTime, notificationText, currentDateTime];
+    sheet.appendRow(newRow);
+
+    Logger.log('Добавлено уведомление для ' + developer + ' на ' + date);
+}
+
+
+
+// Обновляем или добавляем новую запись в таблице уведомлений
+function updateOrAddPaidHoursNotification(sheet, date, status, currentTime, notificationText) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const timeZone = ss.getSpreadsheetTimeZone();
+    const formattedDate = Utilities.formatDate(date, timeZone, 'dd/MM/yyyy');
+
+    const range = sheet.getRange(1, 1, sheet.getLastRow(), 2);
+    const values = range.getValues();
+
+    let found = false;
+
+    for (let i = 0; i < values.length; i++) {
+        const cellDate = values[i][0];
+        const cellStatus = values[i][1];
+        const formattedCellDate = Utilities.formatDate(new Date(cellDate), timeZone, 'dd/MM/yyyy');
+
+        if (formattedCellDate === formattedDate) {
+            if (cellStatus === 'sent') {
+                // If the status is 'sent', do not update
+                found = true;
+                console.log('Entry for date', formattedCellDate, 'already sent, not updating');
+            } else {
+                // Update the existing entry if status is not 'sent'
+                sheet.getRange(i + 1, 2).setValue(status);
+                sheet.getRange(i + 1, 3).setValue(currentTime);
+                sheet.getRange(i + 1, 4).setValue(notificationText);
+                found = true;
+                console.log('Updated entry for date', formattedCellDate);
+            }
+            break;
+        }
+    }
+
+    if (!found) {
+        // If no existing entry is found, create a new one
+        const lastNotificationRow = sheet.getLastRow() + 1;
+        sheet.getRange(lastNotificationRow, 1).setValue(formattedDate); // Date
+        sheet.getRange(lastNotificationRow, 2).setValue(status); // Status
+        sheet.getRange(lastNotificationRow, 3).setValue(currentTime); // CurrentTime
+        sheet.getRange(lastNotificationRow, 4).setValue(notificationText); // Notification
+        console.log('Added new entry for date', formattedDate);
+    }
+}
+
+function testSendSlackNotification() {
+    sendSlackNotification('test', 'U06KXR5MP0U');
+}
+
+
+function sendSlackNotification(message, channel = 'U06KXR5MP0U') {
+    var service = getOAuthService();
+    if (service.hasAccess()) {
+        var url = 'https://slack.com/api/chat.postMessage';
+        var payload = {
+            channel: channel,
+            text: message
+        };
+
+        var params = {
+            method: 'post',
+            contentType: 'application/json',
+            headers: {
+                'Authorization': 'Bearer ' + service.getAccessToken()
+            },
+            payload: JSON.stringify(payload)
+        };
+
+        var response = UrlFetchApp.fetch(url, params);
+        var result = JSON.parse(response.getContentText());
+        if (!result.ok) {
+            Logger.log('Error posting message: ' + result.error);
+            return null; // Возвращаем null, если ошибка
+        } else {
+            return { ts: result.ts, channel: result.channel }; // Возвращаем объект с timestamp и каналом
+        }
+    } else {
+        Logger.log('No OAuth access. Please re-authorize.');
+        authorize(); // Initiate the authorization process
+        return null; // Возвращаем null, если нет доступа
+    }
+}
+
+
+
+function getAccessToken(clientId, clientSecret, refreshToken) {
+    var url = 'https://slack.com/api/oauth.v2.access';
+    var payload = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+    };
+
+    var options = {
+        method: 'post',
+        contentType: 'application/x-www-form-urlencoded',
+        payload: payload
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    var result = JSON.parse(response.getContentText());
+    if (result.ok) {
+        return result.access_token;
+    } else {
+        Logger.log('Error getting access token: ' + result.error);
+        return null;
+    }
+}
+
+function processNotifications() {
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var noHoursNotificationsSheetName = 'NoHoursNotifications';
+    var paidHoursNotificationsSheetName = 'PaidHoursNotifications';
+
+    processNoHoursNotifications(spreadsheet, noHoursNotificationsSheetName);
+    processPaidHoursNotifications(spreadsheet, paidHoursNotificationsSheetName);
+}
+
+function processNoHoursNotifications(spreadsheet, sheetName) {
+    var sheet = spreadsheet.getSheetByName(sheetName);
+    var slackSheet = SpreadsheetApp.openById('1VW615PcoaR90HLDD-JQeDmeAcz6DH1T_gCuN17v9C1I').getSheetByName('Developers english vs russian names');
+    var defaultChannel = 'U06KXR5MP0U'; // Andrey Lartsev personal
+
+    if (!sheet || !slackSheet) {
+        Logger.log('Не найден лист ' + sheetName + ' или Developers english vs russian names');
+        return;
+    }
+
+    var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+    var data = dataRange.getValues();
+
+    var slackData = slackSheet.getDataRange().getValues();
+    var slackUsers = {};
+    slackData.forEach(function(row) {
+        slackUsers[row[1]] = row[2]; // Assuming Russian name is in the second column and Slack account is in the third column
+    });
+
+    var now = new Date();
+    var tbilisiTimezone = 'Asia/Tbilisi';
+    var currentHour = Utilities.formatDate(now, tbilisiTimezone, 'HH');
+
+    if (currentHour >= 11 && currentHour < 22) {
+        data.forEach(function(row, index) {
+            var date = row[0];
+            var developer = row[1];
+            var status = row[2];
+            var currentDateTime = row[3];
+            var notification = row[4];
+
+            if (status === 'new') {
+                var channel = defaultChannel;
+                var userId = slackUsers[developer];
+                if (userId) {
+                    channel = userId;
+                }
+
+                var message = notification;
+                sendSlackNotification(message, channel);
+                sendSlackNotification('Сообщение для ' + developer + '\n' + message, defaultChannel); // Дублируем уведомление на канал Андрея Лартсева
+
+                // Обновляем статус на "sent"
+                sheet.getRange(index + 2, 3).setValue('sent');
+                sheet.getRange(index + 2, 3).setNote('Отправлено в Slack: ' + new Date());
+            }
+        });
+    } else {
+        Logger.log('Текущее время не входит в интервал 11:00-22:00 по времени Тбилиси.');
+    }
+}
+
+
+function processPaidHoursNotifications(spreadsheet, sheetName) {
+    var sheet = spreadsheet.getSheetByName(sheetName);
+    var channel = 'C075BGFNNKV'; // notify-paid-hours-daily
+
+    if (!sheet) {
+        Logger.log('Лист ' + sheetName + ' не найден');
+        return;
+    }
+
+    var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn());
+    var data = dataRange.getValues();
+
+    var now = new Date();
+    var tbilisiTimezone = 'Asia/Tbilisi';
+    var currentHour = Utilities.formatDate(now, tbilisiTimezone, 'HH');
+
+    if (currentHour >= 12 && currentHour < 22) {
+        data.forEach(function(row, index) {
+            var date = row[0];
+            var status = row[1];
+            var currentDateTime = row[2];
+            var notification = row[3];
+
+            if (status === 'new') {
+                var message = notification;
+                sendSlackNotification(message,channel);
+
+                // Обновляем статус на "sent"
+                sheet.getRange(index + 2, 2).setValue('sent');
+                sheet.getRange(index + 2, 2).setNote('Отправлено в Slack: ' + new Date());
+            }
+        });
+    } else {
+        Logger.log('Текущее время не входит в интервал 12:00-22:00 по времени Тбилиси.');
+    }
+}
+
+function updateSlackUsersSheet() {
+    var service = getOAuthService();
+    if (!service.hasAccess()) {
+        Logger.log('No OAuth access. Please re-authorize.');
+        return;
+    }
+
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('SlackUsers');
+    if (!sheet) {
+        sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('SlackUsers');
+    }
+    sheet.clear();  // Очистим лист перед обновлением данных
+    sheet.getRange(1, 1, 1, 2).setValues([['ID', 'Name']]); // Заголовки столбцов
+
+    var nextCursor = '';
+    var users = [];
+    var attempts = 0;
+
+    do {
+        Logger.log('Fetching Slack users with cursor: ' + nextCursor);
+        var response = fetchSlackUsers(service, nextCursor);
+        if (response.ok) {
+            Logger.log('Fetched ' + response.members.length + ' users');
+            response.members.forEach(function(member) {
+                if (member.profile) {
+                    users.push([member.id, member.profile.real_name]);
+                } else {
+                    Logger.log('Skipped user without profile: ' + member.id + ' (' + member.name + ')');
+                }
+            });
+
+            nextCursor = response.response_metadata.next_cursor;
+            Logger.log('Next cursor: ' + nextCursor);
+            Utilities.sleep(1000); // Задержка между запросами для предотвращения rate limit
+        } else {
+            Logger.log('Error fetching user list: ' + response.error);
+            if (response.error === 'ratelimited') {
+                Logger.log('Rate limit exceeded. Retrying in 1 minute.');
+                Utilities.sleep(60000); // Задержка на 1 минуту
+            } else {
+                break;
+            }
+        }
+        attempts++;
+    } while (nextCursor && attempts < 10);
+
+    Logger.log('Total users fetched: ' + users.length);
+
+    if (users.length > 0) {
+        sheet.getRange(2, 1, users.length, 2).setValues(users); // Вставляем данные
+        Logger.log('Users data written to SlackUsers sheet');
+    } else {
+        Logger.log('No users data to write to SlackUsers sheet');
+    }
+}
+
+function checkSlackAccounts() {
+    var developersSpreadsheetId = '1VW615PcoaR90HLDD-JQeDmeAcz6DH1T_gCuN17v9C1I';
+    var developersSpreadsheet = SpreadsheetApp.openById(developersSpreadsheetId);
+    var currentSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Проверка существования листов
+    var developersSheet = developersSpreadsheet.getSheetByName('Developers english vs russian names');
+    if (!developersSheet) {
+        Logger.log("Лист 'Developers english vs russian names' не найден");
+        return;
+    }
+
+    var slackUsersSheet = currentSpreadsheet.getSheetByName('SlackUsers');
+    if (!slackUsersSheet) {
+        Logger.log("Лист 'SlackUsers' не найден");
+        return;
+    }
+
+    // Получаем данные из листов
+    var developersData = developersSheet.getDataRange().getValues();
+    var slackUsersData = slackUsersSheet.getDataRange().getValues();
+
+    // Создаем словарь для быстрого поиска соответствий имени и аккаунта
+    var nameToAccountMap = {};
+    for (var i = 1; i < developersData.length; i++) { // Пропускаем заголовок
+        var name = developersData[i][0];
+        if (name) {
+            var nameParts = name.split(' ');
+            if (nameParts.length > 1) {
+                var reversedName = nameParts[1] + ' ' + nameParts[0];
+                nameToAccountMap[reversedName.toLowerCase()] = developersData[i][1];
+            }
+        }
+    }
+
+    // Проверяем соответствие и записываем результат в колонку C
+    for (var j = 1; j < slackUsersData.length; j++) { // Пропускаем заголовок
+        var slackUser = slackUsersData[j][1]; // Имя в колонке B
+        if (slackUser) {
+            var slackUserName = slackUser.toLowerCase();
+            if (nameToAccountMap[slackUserName]) {
+                slackUsersSheet.getRange(j + 1, 3).setValue(nameToAccountMap[slackUserName]); // Записываем соответствие в колонку C
+            } else {
+                slackUsersSheet.getRange(j + 1, 3).setValue('error'); // Записываем 'error', если соответствие не найдено
+            }
+        }
+    }
+}
+
+
+
+function fetchSlackUsers(service, cursor) {
+    var url = 'https://slack.com/api/users.list?limit=200' + (cursor ? '&cursor=' + cursor : '');
+    var params = {
+        method: 'get',
+        contentType: 'application/json',
+        headers: {
+            'Authorization': 'Bearer ' + service.getAccessToken()
+        },
+        muteHttpExceptions: true
+    };
+
+    var response = UrlFetchApp.fetch(url, params);
+    Logger.log('Response code: ' + response.getResponseCode());
+    var responseText = response.getContentText();
+    Logger.log('Response text length: ' + responseText.length); // Логирование длины текста ответа для избежания превышения размера логов
+    return JSON.parse(responseText);
+}
+
+// // Рекрутинг отчеты
+// function sendDailyAndWeeklyReports() {
+//   try {
+//     Logger.log("Начало выполнения sendDailyAndWeeklyReports");
+
+//     var spreadsheetId = '189YZ_AKtBhVBADGksYIjKQCg8h_ky6Bh5tjEzxUWeXY';
+//     var sheetLastWeek = SpreadsheetApp.openById(spreadsheetId).getSheetByName('LastWeekReport');
+//     var sheetCurrentWeek = SpreadsheetApp.openById(spreadsheetId).getSheetByName('CurrentWeekReport');
+
+//     var today = new Date();
+//     var dayOfWeek = today.getDay();
+//     var yesterday = new Date(today);
+//     var lastFriday = new Date(today);
+//     yesterday.setDate(today.getDate() - 1);
+//     lastFriday.setDate(today.getDate() - (today.getDay() + 2)); // Если понедельник, то lastFriday будет пятницей
+
+//     var formattedToday = Utilities.formatDate(today, Session.getScriptTimeZone(), "dd.MM.yyyy");
+//     var formattedYesterday = Utilities.formatDate(yesterday, Session.getScriptTimeZone(), "dd.MM.yyyy");
+//     var formattedLastFriday = Utilities.formatDate(lastFriday, Session.getScriptTimeZone(), "dd.MM.yyyy");
+
+//     Logger.log("Сегодня: " + formattedToday);
+//     Logger.log("Вчера: " + formattedYesterday);
+//     Logger.log("Последняя пятница: " + formattedLastFriday);
+
+//     var dailyReport = generateDailyReport(sheetCurrentWeek, sheetLastWeek, formattedYesterday, formattedToday, dayOfWeek, formattedLastFriday);
+//     var weeklyReport = '';
+
+//     if(dayOfWeek > 5) {
+//       Logger.log("Сегодня выходной день. Не отправляем уведомлений.");
+//       return;
+//     }
+
+//     if (dayOfWeek === 1) { // Понедельник
+//       weeklyReport = generateWeeklyReport(sheetLastWeek);
+//     }
+
+//     if (weeklyReport) {
+//       Logger.log("Отправка еженедельного отчета");
+//       sendSlackNotification(weeklyReport, "C075519G43Y");//D06KEQM525D    , "C075519G43Y"
+//     }
+
+//     if (dailyReport) {
+//       Logger.log("Отправка ежедневного отчета");
+//       sendSlackNotification(dailyReport, "C075519G43Y"); //D06KEQM525D    , "C075519G43Y"
+//     } else {
+//       Logger.log("Ежедневный отчет не отправлен, так как нет данных за вчера и сегодня");
+//     }
+
+//     Logger.log("Завершение выполнения sendDailyAndWeeklyReports");
+//   } catch (error) {
+//     Logger.log("Ошибка: " + error.message);
+//   }
+// }
+
+function sendDailyAndWeeklyReports() {
+    try {
+        Logger.log("Начало выполнения sendDailyAndWeeklyReports");
+
+        var spreadsheetId = '189YZ_AKtBhVBADGksYIjKQCg8h_ky6Bh5tjEzxUWeXY';
+        var sheetLastWeek = SpreadsheetApp.openById(spreadsheetId).getSheetByName('LastWeekReport');
+        var sheetCurrentWeek = SpreadsheetApp.openById(spreadsheetId).getSheetByName('CurrentWeekReport');
+
+        var today = new Date();
+        var dayOfWeek = today.getDay();
+        var yesterday = new Date(today);
+        var lastFriday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        lastFriday.setDate(today.getDate() - (today.getDay() + 2)); // Если понедельник, то lastFriday будет пятницей
+
+        var formattedToday = Utilities.formatDate(today, Session.getScriptTimeZone(), "dd.MM.yyyy");
+        var formattedYesterday = Utilities.formatDate(yesterday, Session.getScriptTimeZone(), "dd.MM.yyyy");
+        var formattedLastFriday = Utilities.formatDate(lastFriday, Session.getScriptTimeZone(), "dd.MM.yyyy");
+
+        Logger.log("Сегодня: " + formattedToday);
+        Logger.log("Вчера: " + formattedYesterday);
+        Logger.log("Последняя пятница: " + formattedLastFriday);
+
+        var dailyReport = generateDailyReport(sheetCurrentWeek, sheetLastWeek, formattedYesterday, formattedToday, dayOfWeek, formattedLastFriday);
+        var weeklyReport = '';
+
+        if (dayOfWeek > 5) {
+            Logger.log("Сегодня выходной день. Не отправляем уведомлений.");
+            return;
+        }
+
+        if (dayOfWeek === 1) { // Понедельник
+            weeklyReport = generateWeeklyReport(sheetLastWeek);
+        }
+
+        if (dailyReport) {
+            Logger.log("Отправка ежедневного отчета");
+            sendOrUpdateSlackMessage(dailyReport, 'recruit-daily','C075519G43Y', formattedToday); // Используем функцию sendOrUpdateSlackMessage U06KXR5MP0U
+        } else {
+            Logger.log("Ежедневный отчет не отправлен, так как нет данных за вчера и сегодня");
+        }
+
+        if (weeklyReport) {
+            Logger.log("Отправка еженедельного отчета");
+            sendOrUpdateSlackMessage(weeklyReport, 'recruit-weekly','C075519G43Y', formattedToday); // Используем функцию sendOrUpdateSlackMessage U06KXR5MP0U
+        }
+
+        Logger.log("Завершение выполнения sendDailyAndWeeklyReports");
+    } catch (error) {
+        Logger.log("Ошибка: " + error.message);
+    }
+}
+
+function isReportAlreadySent(reportType, date) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('SlackMessages') || SpreadsheetApp.getActiveSpreadsheet().insertSheet('SlackMessages');
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+        if (data[i][0] === reportType && data[i][4] === date) {
+            return true;
+        }
+    }
+    return false;
+}
+
+//'U06KXR5MP0U'
+function sendOrUpdateSlackMessage(text, reportType, primaryChannel = 'U06KXR5MP0U', formattedToday) {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('SlackMessages') || SpreadsheetApp.getActiveSpreadsheet().insertSheet('SlackMessages');
+
+    // Проверка существования заголовков
+    if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['ReportType', 'Timestamp', 'PrimaryChannel', 'SecondaryChannel', 'Message', 'Date']);
+    }
+
+    // Поиск timestamp и secondaryChannel для отчета
+    var data = sheet.getDataRange().getValues();
+    var timestamp = '';
+    var secondaryChannel = '';
+    var rowIndex = -1;
+    Logger.log("Начало поиска timestamp для отчета: " + reportType + " на канале: " + primaryChannel + " с датой: " + formattedToday);
+    for (var i = 1; i < data.length; i++) {
+        Logger.log("Проверка строки " + i + ": " + JSON.stringify(data[i]));
+        if (data[i][0] === reportType) {
+            Logger.log("Тип отчета совпадает для строки " + i);
+        }
+        if (data[i][2] === primaryChannel) {
+            Logger.log("Primary канал совпадает для строки " + i);
+        } else {
+            Logger.log("Primary канал не совпадает: ожидалось " + primaryChannel + ", а получено " + data[i][2]);
+        }
+        if (data[i][5] === formattedToday) {
+            Logger.log("Дата совпадает для строки " + i);
+        }
+        if (data[i][0] === reportType && data[i][2] === primaryChannel && data[i][5] === formattedToday) {
+            timestamp = data[i][1];
+            secondaryChannel = data[i][3];
+            rowIndex = i;
+            Logger.log("Найдено совпадение в строке " + i + ": timestamp = " + timestamp + ", secondaryChannel = " + secondaryChannel);
+            break;
+        }
+    }
+    if (timestamp === '') {
+        Logger.log("Не найдено совпадение для отчета: " + reportType + " на канале: " + primaryChannel + " с датой: " + formattedToday);
+    }
+
+    Logger.log('Текущий timestamp для отчета ' + reportType + ': ' + timestamp);
+
+    var service = getOAuthService();
+    if (service.hasAccess()) {
+        if (timestamp) {
+            // Проверяем, изменился ли текст сообщения
+            if (data[rowIndex][4] === text) {
+                Logger.log('Текст сообщения не изменился, обновление не требуется.');
+                return;
+            }
+
+            // Обновление существующего сообщения
+            Logger.log('Обновление сообщения в канале ' + secondaryChannel + ' с timestamp: ' + timestamp);
+            var response = UrlFetchApp.fetch('https://slack.com/api/chat.update', {
+                method: 'post',
+                contentType: 'application/json',
+                headers: {
+                    'Authorization': 'Bearer ' + service.getAccessToken(),
+                },
+                payload: JSON.stringify({
+                    channel: secondaryChannel,
+                    ts: timestamp,
+                    text: text
+                })
+            });
+            var result = JSON.parse(response.getContentText());
+            if (!result.ok) {
+                Logger.log('Ошибка обновления сообщения: ' + result.error);
+                if (result.error === 'message_not_found') {
+                    Logger.log('Сообщение не найдено.');
+                    // var ts = sendSlackNotification(text, primaryChannel);
+                    // if (ts && ts.ts) {
+                    //     sheet.appendRow([reportType, ts.ts.toString(), primaryChannel, ts.channel, text, formattedToday]);
+                    //     Logger.log('Добавлена новая строка: ' + [reportType, ts.ts.toString(), primaryChannel, ts.channel, text, formattedToday].join(', '));
+                    // }
+                }
+            } else {
+                Logger.log('Сообщение успешно обновлено, timestamp: ' + timestamp);
+                sheet.getRange(rowIndex + 1, 4).setValue(text); // Обновляем текст в таблице
+                sheet.getRange(rowIndex + 1, 5).setValue(formattedToday); // Обновляем дату в таблице
+            }
+        } else {
+            // Отправка нового сообщения
+            Logger.log('Отправка нового сообщения в канал ' + primaryChannel);
+            var ts = sendSlackNotification(text, primaryChannel);
+            if (ts && ts.ts) {
+                sheet.appendRow([reportType, ts.ts.toString(), primaryChannel, ts.channel, text, formattedToday]);
+                Logger.log('Добавлена новая строка: ' + [reportType, ts.ts.toString(), primaryChannel, ts.channel, text, formattedToday].join(', '));
+            }
+        }
+    } else {
+        Logger.log('Нет доступа OAuth. Пожалуйста, повторно авторизуйтесь.');
+        authorize(); // Initiate the authorization process
+    }
+}
+
+
+function sendSlackNotification(message, channel = 'U06KXR5MP0U') {
+    var service = getOAuthService();
+    if (service.hasAccess()) {
+        var url = 'https://slack.com/api/chat.postMessage';
+        var payload = {
+            channel: channel,
+            text: message
+        };
+
+        var params = {
+            method: 'post',
+            contentType: 'application/json',
+            headers: {
+                'Authorization': 'Bearer ' + service.getAccessToken()
+            },
+            payload: JSON.stringify(payload)
+        };
+
+        var response = UrlFetchApp.fetch(url, params);
+        var result = JSON.parse(response.getContentText());
+        if (!result.ok) {
+            Logger.log('Ошибка отправки сообщения: ' + result.error);
+            return null; // Возвращаем null, если ошибка
+        } else {
+            Logger.log('Сообщение отправлено, timestamp: ' + result.ts);
+            return { ts: result.ts, channel: result.channel }; // Возвращаем объект с timestamp и каналом
+        }
+    } else {
+        Logger.log('Нет доступа OAuth. Пожалуйста, повторно авторизуйтесь.');
+        authorize(); // Initiate the authorization process
+        return null; // Возвращаем null, если нет доступа
+    }
+}
+
+
+function generateDailyReport(sheetCurrentWeek, sheetLastWeek, yesterday, today, dayOfWeek, lastFriday) {
+    try {
+        Logger.log("Начало выполнения generateDailyReport");
+
+        var data = sheetCurrentWeek.getDataRange().getValues();
+        var dataLastWeek = sheetLastWeek.getDataRange().getValues();
+        var dailyReport = "*Рекрутинг Daily " + today + "*\n";
+        var yesterdayData = '';
+        var todayData = '';
+
+
+        if (dayOfWeek === 1) { // Понедельник
+            Logger.log("Генерация отчета за пятницу");
+            yesterdayData = extractReportData(dataLastWeek, lastFriday);
+            dailyReport += "*В пятницу (" + lastFriday + ")*\n" + yesterdayData;
+        } else {
+            Logger.log("Генерация отчета за вчера");
+            yesterdayData = extractReportData(data, yesterday, false);
+            dailyReport += "*Вчера (" + yesterday + ")*\n" + yesterdayData;
+        }
+
+        Logger.log("Генерация отчета за сегодня");
+        todayData = extractReportData(data, today, true);
+        dailyReport += "*Сегодня (" + today + ")*\n" + todayData;
+
+        if (!yesterdayData && !todayData) {
+            Logger.log("Нет данных для отчета за вчера и сегодня");
+            return ''; // Если данных нет, возвращаем пустую строку
+        }
+
+        Logger.log("Завершение выполнения generateDailyReport");
+        return dailyReport;
+    } catch (error) {
+        Logger.log("Ошибка в generateDailyReport: " + error.message);
+        throw error;
+    }
+}
+
+function generateWeeklyReport(sheet) {
+    try {
+        Logger.log("Начало выполнения generateWeeklyReport");
+
+        var data = sheet.getDataRange().getValues();
+        var weeklyReport = "*Рекрутинг Weekly Report*\n";
+        weeklyReport += extractWeeklyReportData(data);
+
+        Logger.log("Завершение выполнения generateWeeklyReport");
+
+        return weeklyReport;
+    } catch (error) {
+        Logger.log("Ошибка в generateWeeklyReport: " + error.message);
+        throw error;
+    }
+}
+
+function extractWeeklyReportData(data) {
+    try {
+        Logger.log("Начало выполнения extractWeeklyReportData");
+
+        var reportData = '';
+
+        for (var i = 5; i < data.length; i++) { // Начинаем с 5 строки
+            Logger.log("Обработка строки " + (i + 1) + ": " + JSON.stringify(data[i]));
+
+
+            if (typeof data[i][1] === 'object') {
+                var cellDate = Utilities.formatDate(data[i][1], Session.getScriptTimeZone(), "dd.MM.yyyy");
+                if (cellDate) {
+                    reportData += "\n*"+ cellDate + "*\n";
+                    reportData += extractReportData(data, data[i][1]);
+                }
+            }
+
+            if (data[i][1] && typeof data[i][1] === 'string' && data[i][1].indexOf("Проведено") !== -1) {
+                Logger.log("Конец отчета найден");
+                reportData += "\n*" + data[i].join('') + "*\n";
+                for (var j = i + 1; j < data.length; j++) {
+                    if (data[j][1]) {
+                        reportData += "_" + data[j][1] + "_  " + data[j][2] + "\n";
+                    }
+                }
+                break;
+            }
+        }
+
+        Logger.log("Завершение выполнения extractWeeklyReportData");
+        return reportData;
+    } catch (error) {
+        Logger.log("Ошибка в extractWeeklyReportData: " + error.message);
+        throw error;
+    }
+}
+
+function extractReportData(data, date, isToday = false) {
+    try {
+        Logger.log("Начало выполнения extractReportData для даты: " + date);
+
+        var reportData = '';
+        var inReportSection = false;
+        var dateString = (typeof date === 'object') ? Utilities.formatDate(date, Session.getScriptTimeZone(), "dd.MM.yyyy") : date;
+        var hasDataForDate = false;
+
+        for (var i = 5; i < data.length; i++) { // Начинаем с 5 строки
+            Logger.log("Обработка строки " + (i + 1) + ": " + JSON.stringify(data[i]));
+
+            if (data[i][1]) {
+                if (typeof data[i][1] === 'object') {
+                    var cellDate = Utilities.formatDate(data[i][1], Session.getScriptTimeZone(), "dd.MM.yyyy");
+                    if (!dateString || cellDate === dateString) {
+                        inReportSection = true;
+                        hasDataForDate = false;
+                        Logger.log("Дата совпала (объект): " + cellDate);
+                        continue;
+                    }
+                } else if (typeof data[i][1] === 'string') {
+                    Logger.log("Проверка строки на наличие даты: " + data[i][1]);
+                    if (data[i][1].indexOf(dateString) !== -1) {
+                        inReportSection = true;
+                        hasDataForDate = false;
+                        Logger.log("Дата совпала (строка): " + data[i][1]);
+                        continue;
+                    }
+                }
+            }
+
+            if (inReportSection) {
+                if (data[i][1] && data[i][2] && data[i][3] && data[i][4] && data[i][5]) {
+                    Logger.log("Обработка данных кандидата: " + data[i][1] + " " + data[i][2] + " " + data[i][3] + " " + data[i][4]);
+                    var comments = extractRelevantComments(data[i][5], dateString, isToday);
+                    if (comments) {
+                        var commentsLines = data[i][5].split('\n');
+                        var isDateInSecondLineOrLater = commentsLines.some(function(line, index) {
+                            return index > 0 && line.indexOf(dateString) !== -1;
+                        });
+
+                        if (isDateInSecondLineOrLater) {
+                            reportData += ">_• " + data[i][1] + "\t" + data[i][2] + " " + comments + "_\n";
+                        } else {
+                            reportData += "• " + data[i][1] + "\t" + data[i][2] + "\t" + data[i][4] + "\t" + comments + "\n";
+                        }
+                    }
+                    hasDataForDate = true;
+                } else {
+                    Logger.log("Пропуск строки: неполные данные или пустая строка");
+                }
+            }
+
+
+
+            // Окончание секции данных для текущей даты
+            if (inReportSection && !data[i][1] && (i + 1 >= data.length || (data[i + 1][1] && typeof data[i + 1][1] === 'string' && data[i + 1][1].match(/\d{2}\.\d{2}\.\d{4}/)))) {
+                Logger.log("Конец секции данных для даты: " + date);
+                if (!hasDataForDate) {
+                    reportData += "Нет собеседований\n";
+                }
+                inReportSection = false;
+            }
+
+            // Прерывание на конце отчета
+            if (data[i][1] && typeof data[i][1] === 'string' && data[i][1].indexOf("Проведено") !== -1) {
+                Logger.log("Конец отчета найден");
+                break;
+            }
+        }
+
+        Logger.log("Завершение выполнения extractReportData");
+        return reportData;
+    } catch (error) {
+        Logger.log("Ошибка в extractReportData: " + error.message);
+        throw error;
+    }
+}
+
+function extractRelevantComments(comments, date) {
+    try {
+        Logger.log("Начало выполнения extractRelevantComments для даты: " + date);
+
+        var lines = comments.split('\n');
+        var relevantComments = lines.filter(function(line) {
+            return line.indexOf(date) !== -1;
+        });
+
+        var filteredComments = relevantComments.map(function(comment) {
+            var parts = comment.split(' ');
+            parts.shift(); // Убираем дату
+            parts.shift(); // Убираем 'в'
+            return parts.join(' '); // Возвращаем комментарий без даты и времени
+        }).filter(function(comment) {
+            return comment.trim() !== '';
+        });
+
+        Logger.log("Завершение выполнения extractRelevantComments");
+
+        return filteredComments.join('\n');
+    } catch (error) {
+        Logger.log("Ошибка в extractRelevantComments: " + error.message);
+        throw error;
+    }
+}
+
+
+
 
